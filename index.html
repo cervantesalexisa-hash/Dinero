@@ -486,9 +486,24 @@ function computeCardTotals(card, expenses, msis) {
   const baseAvail   = parseFloat(card.available)||0;
 
   // ── Expense adjustment ──
+  // The toggle (alreadyDiscounted) only affects whether we subtract when NOT paid.
+  // Palomear (paid=true) ALWAYS frees credit — regardless of toggle.
+  //
+  //   alreadyDiscounted=false, paid=false  → bank hasn't charged yet   → subtract
+  //   alreadyDiscounted=false, paid=true   → bank charged, now settled  → +amount (cancel the subtract)
+  //   alreadyDiscounted=true,  paid=false  → bank already has it        → 0 (already in base)
+  //   alreadyDiscounted=true,  paid=true   → paid & settled             → +amount (credit freed)
+  //
+  // Simplified: paid=true always adds back. paid=false only subtracts if NOT already discounted.
   let expAdj = 0;
   expenses.forEach(e => {
-    if (!e.alreadyDiscounted && !e.paid) expAdj -= (parseFloat(e.amount)||0);
+    const amount = parseFloat(e.amount)||0;
+    if (e.paid) {
+      expAdj += amount;          // paid: bank charged it AND user settled → credit freed → +
+    } else if (!e.alreadyDiscounted) {
+      expAdj -= amount;          // pending, bank hasn't charged yet → -
+    }
+    // alreadyDiscounted=true + not paid → 0 (already in base, still owed but bank tracks it)
   });
 
   // ── MSI adjustment ──
@@ -554,7 +569,7 @@ function CardListItem({ card, expenses, msis, onClick, onEdit }) {
         <div className="cc-row">
           <div className="cc-stat">
             <span className="cc-stat-val">{fmt(realAvail)}</span>
-            <span className="cc-stat-lbl">Disponible Real</span>
+            <span className="cc-stat-lbl">Disponible</span>
           </div>
           <div className="cc-stat" style={{alignItems:'flex-end'}}>
             <span className="cc-stat-val">{fmt((parseFloat(card.total)||0)+(parseFloat(card.extension)||0))}</span>
@@ -824,7 +839,7 @@ function CardDetail({ card, expenses, msis, onBack, onEditCard,
         <div className="cc-row">
           <div className="cc-stat">
             <span className="cc-stat-val">{fmt(realAvail)}</span>
-            <span className="cc-stat-lbl">Disponible Real</span>
+            <span className="cc-stat-lbl">Disponible</span>
           </div>
           <div className="cc-stat" style={{alignItems:'flex-end'}}>
             <span className="cc-stat-val">{fmt(totalCredit+extension)}</span>
