@@ -604,7 +604,7 @@ function MsiTab({ msis, onTogglePaid, onEdit }) {
         const months  = Array.from({length:total},(_,i)=>{
           const mi = (parseInt(item.startMonth)+i)%12;
           const yi = parseInt(item.startYear)+Math.floor((parseInt(item.startMonth)+i)/12);
-          return { label: MONTHS[mi]+String(i+1), key: monthKey(yi,mi) };
+          return { num: i+1, key: monthKey(yi,mi) };
         });
         return (
           <div key={item.id} className="msi-item">
@@ -613,12 +613,15 @@ function MsiTab({ msis, onTogglePaid, onEdit }) {
               <span className="msi-total">{fmt(monthly*total)}</span>
             </div>
             <div className="msi-meta">{fmt(monthly)}/mes · {paid.length}/{total} cuotas · {fmt(monthly*paid.length)} pagado</div>
+            {item.alreadyDiscounted && (
+              <div style={{fontSize:11,color:'var(--orange)',marginBottom:4}}>⚡ Primera cuota ya descontada del banco</div>
+            )}
             <ProgressBar pct={pct}/>
             <div className="msi-dots">
-              {months.map((m,i)=>(
-                <button key={i} className={`msi-dot ${paid.includes(m.key)?'paid':''}`}
+              {months.map((m)=>(
+                <button key={m.num} className={`msi-dot ${paid.includes(m.key)?'paid':''}`}
                   onClick={()=>onTogglePaid(item.id,m.key)}>
-                  {paid.includes(m.key)?'✓':m.label}
+                  {paid.includes(m.key)?'✓':m.num}
                 </button>
               ))}
             </div>
@@ -745,21 +748,25 @@ function CardDetail({ card, expenses, msis, onBack, onEditCard,
 
 // ─── FORMS ───────────────────────────────────────────────────────────────────
 function CardForm({ initial, onSave, onDelete, onClose }) {
-  const blank = { name:'', total:0, extension:0, available:0, cutDay:1, payDay:15, color:'blue' };
-  const [f, setF] = useState(initial||blank);
+  const toStr = v => (v===0||v==='0') ? '' : (v||'');
+  const blank = { name:'', total:'', extension:'', available:'', cutDay:'', payDay:'', color:'blue' };
+  const [f, setF] = useState(initial
+    ? {...initial, total:toStr(initial.total), extension:toStr(initial.extension),
+        available:toStr(initial.available), cutDay:toStr(initial.cutDay), payDay:toStr(initial.payDay)}
+    : blank);
   const set = k => e => setF(p=>({...p,[k]:e.target.value}));
   return (
     <Sheet title={initial?'Editar Tarjeta':'Nueva Tarjeta'} onClose={onClose}>
       <div className="sheet-body">
         <div className="field"><label>Nombre</label><input value={f.name} onChange={set('name')} placeholder="ej. HSBC Platinum"/></div>
         <div className="field-row">
-          <div className="field"><label>Crédito Total</label><input type="number" value={f.total} onChange={set('total')}/></div>
-          <div className="field"><label>Extensión</label><input type="number" value={f.extension} onChange={set('extension')}/></div>
+          <div className="field"><label>Crédito Total</label><input type="number" value={f.total} onChange={set('total')} placeholder="0" inputMode="decimal"/></div>
+          <div className="field"><label>Extensión</label><input type="number" value={f.extension} onChange={set('extension')} placeholder="0" inputMode="decimal"/></div>
         </div>
-        <div className="field"><label>Disponible Actual</label><input type="number" value={f.available} onChange={set('available')}/></div>
+        <div className="field"><label>Disponible Actual</label><input type="number" value={f.available} onChange={set('available')} placeholder="0" inputMode="decimal"/></div>
         <div className="field-row">
-          <div className="field"><label>Día de Corte</label><input type="number" min="1" max="31" value={f.cutDay} onChange={set('cutDay')}/></div>
-          <div className="field"><label>Día de Pago</label><input type="number" min="1" max="31" value={f.payDay} onChange={set('payDay')}/></div>
+          <div className="field"><label>Día de Corte</label><input type="number" min="1" max="31" value={f.cutDay} onChange={set('cutDay')} placeholder="1" inputMode="numeric"/></div>
+          <div className="field"><label>Día de Pago</label><input type="number" min="1" max="31" value={f.payDay} onChange={set('payDay')} placeholder="15" inputMode="numeric"/></div>
         </div>
         <div className="field"><label>Color</label><ColorPicker value={f.color} onChange={v=>setF(p=>({...p,color:v}))}/></div>
       </div>
@@ -774,17 +781,17 @@ function CardForm({ initial, onSave, onDelete, onClose }) {
 
 function ExpenseForm({ initial, onSave, onDelete, onClose }) {
   const blank = {
-    desc:'', amount:0, cat:CATS[12], date:today.toISOString().slice(0,10),
+    desc:'', amount:'', cat:CATS[12], date:today.toISOString().slice(0,10),
     note:'', paid:false, alreadyDiscounted:false
   };
-  const [f, setF] = useState(initial||blank);
+  const [f, setF] = useState(initial ? {...initial, amount: initial.amount===0?'':initial.amount} : blank);
   const set = k => e => setF(p=>({...p,[k]:e.target.value}));
 
   return (
     <Sheet title={initial?'Editar Gasto':'Nuevo Gasto'} onClose={onClose}>
       <div className="sheet-body">
         <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. Amazon, Netflix…"/></div>
-        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')}/></div>
+        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')} placeholder="0.00" inputMode="decimal"/></div>
         <div className="field"><label>Categoría</label>
           <select value={f.cat} onChange={set('cat')}>
             {CATS.map(c=><option key={c}>{c}</option>)}
@@ -813,15 +820,20 @@ function ExpenseForm({ initial, onSave, onDelete, onClose }) {
 }
 
 function MsiForm({ initial, onSave, onDelete, onClose }) {
-  const blank = { desc:'', monthly:0, total:12, startMonth:currentMonth, startYear:currentYear, paid:[] };
-  const [f, setF] = useState(initial||blank);
+  const blank = { desc:'', monthly:'', total:'', startMonth:currentMonth, startYear:currentYear, paid:[], alreadyDiscounted:false };
+  const [f, setF] = useState(initial
+    ? {...initial,
+        monthly: initial.monthly===0?'':initial.monthly,
+        total:   initial.total===0?'':initial.total,
+        alreadyDiscounted: initial.alreadyDiscounted||false }
+    : blank);
   const set = k => e => setF(p=>({...p,[k]:e.target.value}));
   return (
     <Sheet title={initial?'Editar MSI':'Nuevo MSI / Diferido'} onClose={onClose}>
       <div className="sheet-body">
         <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. MacBook 12 MSI"/></div>
-        <div className="field"><label>Cuota Mensual ($)</label><input type="number" value={f.monthly} onChange={set('monthly')}/></div>
-        <div className="field"><label>Total de Cuotas</label><input type="number" min="1" max="60" value={f.total} onChange={set('total')}/></div>
+        <div className="field"><label>Cuota Mensual ($)</label><input type="number" value={f.monthly} onChange={set('monthly')} placeholder="0.00" inputMode="decimal"/></div>
+        <div className="field"><label>Total de Cuotas</label><input type="number" min="1" max="60" value={f.total} onChange={set('total')} placeholder="12" inputMode="numeric"/></div>
         <div className="field-row">
           <div className="field"><label>Mes Inicio</label>
             <select value={f.startMonth} onChange={set('startMonth')}>
@@ -830,25 +842,33 @@ function MsiForm({ initial, onSave, onDelete, onClose }) {
           </div>
           <div className="field"><label>Año</label><input type="number" min="2020" max="2035" value={f.startYear} onChange={set('startYear')}/></div>
         </div>
+        <Toggle
+          on={f.alreadyDiscounted}
+          onToggle={()=>setF(p=>({...p,alreadyDiscounted:!p.alreadyDiscounted}))}
+          label="¿Primera cuota ya descontada del saldo?"
+          sub={f.alreadyDiscounted
+            ? "✅ El banco ya cargó la primera cuota — no se restará al guardar"
+            : "⚠️ Sin cargo previo — la cuota mensual se restará del disponible al guardar"}
+        />
       </div>
       <div className="sheet-actions">
         {initial && <button className="btn-danger" onClick={()=>{onDelete(initial.id);onClose();}}>Eliminar</button>}
         <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn-primary" onClick={()=>{if(f.desc){onSave({...f,paid:initial?initial.paid:[]});onClose();}}}>Guardar</button>
+        <button className="btn-primary" onClick={()=>{if(f.desc&&f.monthly){onSave({...f,paid:initial?initial.paid:[]});onClose();}}}>Guardar</button>
       </div>
     </Sheet>
   );
 }
 
 function CommitForm({ initial, onSave, onDelete, onClose }) {
-  const blank = { desc:'', amount:0, cat:CATS[8], month:currentMonth, year:currentYear, repeat:1, paidMonths:[] };
-  const [f, setF] = useState(initial||blank);
+  const blank = { desc:'', amount:'', cat:CATS[8], month:currentMonth, year:currentYear, repeat:1, paidMonths:[] };
+  const [f, setF] = useState(initial ? {...initial, amount: initial.amount===0?'':initial.amount} : blank);
   const set = k => e => setF(p=>({...p,[k]:e.target.value}));
   return (
     <Sheet title={initial?'Editar Compromiso':'Nuevo Compromiso'} onClose={onClose}>
       <div className="sheet-body">
         <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. Netflix, Renta…"/></div>
-        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')}/></div>
+        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')} placeholder="0.00" inputMode="decimal"/></div>
         <div className="field"><label>Categoría</label>
           <select value={f.cat} onChange={set('cat')}>{CATS.map(c=><option key={c}>{c}</option>)}</select>
         </div>
@@ -1015,8 +1035,26 @@ function App() {
 
   // ── MSI CRUD ──
   const saveMsi = (f, cardId) => {
-    if (f.id) setMsis(p=>p.map(x=>x.id===f.id?{...f,cardId}:x));
-    else setMsis(p=>[...p,{...f,id:uid(),cardId,paid:[]}]);
+    const monthly = parseFloat(f.monthly)||0;
+    if (f.id) {
+      setMsis(p => {
+        const old = p.find(x=>x.id===f.id);
+        // Reverse old effect, apply new (only on first cuota deduction)
+        const oldEffect = old ? (old.alreadyDiscounted ? 0 : -(parseFloat(old.monthly)||0)) : 0;
+        const newEffect = f.alreadyDiscounted ? 0 : -monthly;
+        const delta = newEffect - oldEffect;
+        if (delta !== 0) {
+          setCards(cp=>cp.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)+delta}:c));
+        }
+        return p.map(x=>x.id===f.id?{...f,cardId}:x);
+      });
+    } else {
+      // New MSI: if not already discounted, subtract first cuota from available
+      if (!f.alreadyDiscounted) {
+        setCards(p=>p.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)-monthly}:c));
+      }
+      setMsis(p=>[...p,{...f,id:uid(),cardId,paid:[]}]);
+    }
   };
   const deleteMsi = id => setMsis(p=>p.filter(x=>x.id!==id));
   const toggleMsiPaid = (id, mk) => {
