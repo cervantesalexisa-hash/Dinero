@@ -214,6 +214,7 @@
     cursor: pointer; transition: all .2s; line-height: 1; text-align: center;
   }
   .msi-dot.paid { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .msi-dot.pre-paid { background: var(--text3); border-color: var(--text3); color: #fff; opacity: .7; }
 
   /* CATEGORY CHART */
   .cat-row {
@@ -353,7 +354,7 @@ const currentYear  = today.getFullYear();
 const currentMK    = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
 
 const uid    = () => Math.random().toString(36).slice(2,10);
-const fmt    = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}).format(n||0);
+const fmt    = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
 const monthKey = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
 function daysUntil(day) {
   const d = today.getDate();
@@ -462,30 +463,62 @@ function Sheet({ title, onClose, children }) {
 }
 
 // ─── CARD SUMMARY (list view) ─────────────────────────────────────────────
+// Model: card.available is the base balance the user entered and NEVER mutates.
+// Everything is derived from it each render:
+//   - Expenses with alreadyDiscounted=false and paid=false → subtract from available (bank hasn't taken it yet)
+//   - Expenses with paid=true → no adjustment needed (they were never subtracted OR were subtracted and now freed)
+//     Actually: alreadyDiscounted=false,paid=false → -amount (pending, not yet in bank)
+//               alreadyDiscounted=false,paid=true  → 0 (user paid it, it freed up credit)
+//               alreadyDiscounted=true,paid=*      → 0 (bank already took it, already reflected in base)
+//   - MSI: paidCount cuotas are pre-existing — already in the base available.
+//          Only NEW paid cuotas (index >= paidCount) add back to available.
+//          Remaining cuotas (unpaid, index >= paidCount) subtract from available as pending debt.
 function computeCardTotals(card, expenses, msis) {
-  const totalCredit  = parseFloat(card.total)||0;
-  const baseAvail    = parseFloat(card.available)||0;
+  const totalCredit = parseFloat(card.total)||0;
+  const extension   = parseFloat(card.extension)||0;
+  const baseAvail   = parseFloat(card.available)||0;
 
-  // Expenses that are already discounted from bank reduce available (alreadyDiscounted = true → already taken, no adjustment)
-  // Expenses marked paid → add back to available
-  // Expenses NOT paid and NOT alreadyDiscounted → subtract from available (we track this via the flag on save)
-  const paidExpSum  = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
-  const paidMsiSum  = msis.reduce((a,m)=>{
-    return a + (m.paid||[]).length * (parseFloat(m.monthly)||0);
-  },0);
+  // Expenses adjustment:
+  // pending (not paid, not already discounted) → bank hasn't taken it → subtract
+  let expAdjust = 0;
+  expenses.forEach(e => {
+    if (!e.alreadyDiscounted && !e.paid) expAdjust -= (parseFloat(e.amount)||0);
+  });
 
-  const realAvail = baseAvail + paidExpSum + paidMsiSum;
+  // MSI adjustment:
+  // For each MSI, paidCount = how many were pre-existing (already in base).
+  // paid[] = all palomeadas (includes pre-existing AND newly paid).
+  // newlyPaid = paid.length - paidCount (cuotas the user ticked AFTER adding the MSI)
+  // remaining = total - paid.length (cuotas still unpaid)
+  // Effect on realAvail: remaining cuotas are still pending → subtract them as "reserved" debt
+  // (they will free up credit as they get palomeadas)
+  let msiAdjust = 0;
+  msis.forEach(m => {
+    const total    = parseInt(m.total)||0;
+    const monthly  = parseFloat(m.monthly)||0;
+    const paidKeys = m.paid||[];
+    const paidCount= parseInt(m.paidCount)||0; // pre-existing cuotas entered by user
+    // Remaining unpaid cuotas are pending debt → they reduce effective available
+    const remaining = total - paidKeys.length;
+    msiAdjust -= remaining * monthly;
+    // Newly paid cuotas (beyond the pre-existing ones) freed up credit → add back
+    const newlyPaid = Math.max(0, paidKeys.length - paidCount);
+    msiAdjust += newlyPaid * monthly;
+  });
+
+  const realAvail = baseAvail + expAdjust + msiAdjust;
   const used      = totalCredit - realAvail;
-  const usedPct   = totalCredit > 0 ? (used/totalCredit)*100 : 0;
+  const usedPct   = totalCredit > 0 ? (used / totalCredit) * 100 : 0;
 
+  // Total to pay = pending expenses + remaining MSI installments
   const unpaidExpTotal = expenses.filter(e=>!e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
-  const remainMsi = msis.reduce((a,m)=>{
-    const paidCount = (m.paid||[]).length;
-    return a + (parseInt(m.total)-paidCount)*(parseFloat(m.monthly)||0);
+  const remainMsiTotal = msis.reduce((a,m)=>{
+    const remaining = (parseInt(m.total)||0) - (m.paid||[]).length;
+    return a + remaining * (parseFloat(m.monthly)||0);
   },0);
-  const totalToPay = unpaidExpTotal + remainMsi;
+  const totalToPay = unpaidExpTotal + remainMsiTotal;
 
-  return { totalCredit, realAvail, used, usedPct, totalToPay,
+  return { totalCredit, extension, realAvail, used, usedPct, totalToPay,
     cutDays: daysUntil(parseInt(card.cutDay)||1),
     payDays: daysUntil(parseInt(card.payDay)||15),
   };
@@ -633,31 +666,66 @@ function MsiTab({ msis, onTogglePaid, onEdit }) {
   return (
     <div className="list-wrap">
       {msis.map(item => {
-        const total   = parseInt(item.total)||0;
-        const monthly = parseFloat(item.monthly)||0;
-        const paid    = item.paid||[];
-        const pct     = total>0?(paid.length/total)*100:0;
-        const months  = Array.from({length:total},(_,i)=>{
+        const total     = parseInt(item.total)||0;
+        const monthly   = parseFloat(item.monthly)||0;
+        const paidKeys  = item.paid||[];
+        const paidCount = parseInt(item.paidCount)||0; // pre-existing cuotas
+        const pct       = total>0?(paidKeys.length/total)*100:0;
+        const remaining = total - paidKeys.length;
+        const months    = Array.from({length:total},(_,i)=>{
           const mi = (parseInt(item.startMonth)+i)%12;
           const yi = parseInt(item.startYear)+Math.floor((parseInt(item.startMonth)+i)/12);
-          return { num: i+1, key: monthKey(yi,mi) };
+          return { num: i+1, key: monthKey(yi,mi), isPre: i < paidCount };
         });
         return (
           <div key={item.id} className="msi-item">
+            {/* Title row */}
             <div className="msi-top">
               <span className="msi-desc">{item.desc}</span>
-              <span className="msi-total">{fmt(monthly*total)}</span>
+              <span className="msi-total" style={{color: remaining===0?'var(--green)':'var(--blue)'}}>
+                {remaining===0 ? '✓ Pagado' : fmt(remaining*monthly)}
+              </span>
             </div>
-            <div className="msi-meta">{fmt(monthly)}/mes · {paid.length}/{total} cuotas · {fmt(monthly*paid.length)} pagado</div>
+
+            {/* iOS-style subtitle */}
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+              <span style={{
+                fontSize:12,fontWeight:600,color:'var(--text2)',
+                background:'var(--bg)',borderRadius:6,padding:'2px 8px',
+              }}>
+                {paidKeys.length===total
+                  ? `${total} de ${total} cuotas`
+                  : `Pago ${paidKeys.length+1} de ${total}`}
+              </span>
+              <span style={{fontSize:12,color:'var(--text2)'}}>·</span>
+              <span style={{fontSize:12,color:'var(--text2)'}}>{fmt(monthly)}/mes</span>
+            </div>
+
             <ProgressBar pct={pct}/>
-            <div className="msi-dots">
-              {months.map((m)=>(
-                <button key={m.num} className={`msi-dot ${paid.includes(m.key)?'paid':''}`}
-                  onClick={()=>onTogglePaid(item.id,m.key)}>
-                  {paid.includes(m.key)?'✓':m.num}
-                </button>
-              ))}
+
+            {/* Cuota dots */}
+            <div className="msi-dots" style={{marginTop:10}}>
+              {months.map((m)=>{
+                const isPaid = paidKeys.includes(m.key);
+                const isNew  = isPaid && !m.isPre; // newly ticked by user
+                return (
+                  <button key={m.num}
+                    className={`msi-dot ${isPaid?'paid':''} ${m.isPre&&isPaid?'pre-paid':''}`}
+                    onClick={()=>onTogglePaid(item.id,m.key)}
+                    title={`Cuota ${m.num}`}>
+                    {isPaid ? (m.isPre ? '●' : '✓') : m.num}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Pending info */}
+            {remaining > 0 && (
+              <div style={{fontSize:12,color:'var(--text2)',marginTop:8}}>
+                Quedan <strong style={{color:'var(--text)'}}>{remaining} cuotas</strong> · {fmt(remaining*monthly)} pendiente
+              </div>
+            )}
+
             <div style={{textAlign:'right',marginTop:6}}>
               <button className="item-edit-btn" onClick={()=>onEdit(item)}>editar</button>
             </div>
@@ -704,24 +772,25 @@ function CardDetail({ card, expenses, msis, onBack, onEditCard,
     onToggleMsiPaid, onEditMsi, onAddMsi }) {
   const [activeTab, setActiveTab] = useState('gastos');
   const colorInfo = COLORS.find(c=>c.id===card.color)||COLORS[2];
-  const { realAvail, usedPct, totalToPay, cutDays, payDays } = computeCardTotals(card, expenses, msis);
+  const { realAvail, usedPct, totalToPay, cutDays, payDays, totalCredit, extension } = computeCardTotals(card, expenses, msis);
 
-  const handleFabDetail = () => {
+  const handleAdd = () => {
     if (activeTab === 'gastos') onAddExpense(card.id);
     else if (activeTab === 'msi') onAddMsi(card.id);
   };
 
   return (
-    <div className="screen-view slide-in" style={{paddingBottom:'calc(var(--nav-h) + var(--safe-bottom) + 80px)'}}>
-      {/* Header */}
+    <div className="screen-view slide-in" style={{paddingBottom:'calc(var(--nav-h) + var(--safe-bottom) + 32px)'}}>
+
+      {/* Header nav */}
       <div className="detail-header">
         <button className="back-btn" onClick={onBack}><IconChevronLeft/>Tarjetas</button>
         <div style={{flex:1}}/>
         <button style={{background:'none',border:'none',color:'var(--blue)',fontSize:14,fontWeight:600,cursor:'pointer'}} onClick={()=>onEditCard(card)}>Editar</button>
       </div>
 
-      {/* Card summary */}
-      <div style={{margin:'0 16px 8px'}}>
+      {/* Card gradient banner */}
+      <div style={{margin:'0 16px 10px'}}>
         <div className={`cc-header ${colorInfo.cls}`} style={{borderRadius:'var(--radius)'}}>
           <div className="cc-name">{card.name||'Sin nombre'}</div>
           <div className="cc-chips">
@@ -733,11 +802,17 @@ function CardDetail({ card, expenses, msis, onBack, onEditCard,
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={{background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',margin:'0 16px 8px',padding:'14px 16px'}}>
+      {/* Stats card */}
+      <div style={{background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',margin:'0 16px 10px',padding:'14px 16px'}}>
         <div className="cc-row">
-          <div className="cc-stat"><span className="cc-stat-val">{fmt(realAvail)}</span><span className="cc-stat-lbl">Disponible Real</span></div>
-          <div className="cc-stat" style={{alignItems:'flex-end'}}><span className="cc-stat-val">{fmt((parseFloat(card.total)||0)+(parseFloat(card.extension)||0))}</span><span className="cc-stat-lbl">Crédito Total</span></div>
+          <div className="cc-stat">
+            <span className="cc-stat-val">{fmt(realAvail)}</span>
+            <span className="cc-stat-lbl">Disponible Real</span>
+          </div>
+          <div className="cc-stat" style={{alignItems:'flex-end'}}>
+            <span className="cc-stat-val">{fmt(totalCredit+extension)}</span>
+            <span className="cc-stat-lbl">Crédito Total</span>
+          </div>
         </div>
         <div className="bar-wrap">
           <ProgressBar pct={usedPct}/>
@@ -755,26 +830,46 @@ function CardDetail({ card, expenses, msis, onBack, onEditCard,
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="detail-tabs">
+      {/* ── Tabs + inline add button ── */}
+      <div style={{
+        background:'var(--card)',
+        borderBottom:'1px solid var(--sep)',
+        display:'flex', alignItems:'center',
+        padding:'0 4px',
+        position:'sticky', top:0, zIndex:10,
+        boxShadow:'0 1px 0 var(--sep)',
+      }}>
         {['gastos','msi','categorias'].map(t=>(
-          <button key={t} className={`detail-tab ${activeTab===t?'active':''}`} onClick={()=>setActiveTab(t)}>
+          <button key={t} onClick={()=>setActiveTab(t)} style={{
+            flex:1, padding:'13px 0', border:'none', background:'none', cursor:'pointer',
+            fontSize:14, fontWeight: activeTab===t ? 700 : 500,
+            color: activeTab===t ? 'var(--text)' : 'var(--text2)',
+            borderBottom: activeTab===t ? '2px solid var(--blue)' : '2px solid transparent',
+            transition:'all .15s', marginBottom:-1,
+          }}>
             {t==='gastos'?'Gastos':t==='msi'?'MSI':'Categorías'}
           </button>
         ))}
+        {activeTab !== 'categorias' && (
+          <button onClick={handleAdd} style={{
+            background:'var(--blue)', color:'#fff', border:'none',
+            borderRadius:10, padding:'7px 14px', margin:'0 8px',
+            fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0,
+            display:'flex', alignItems:'center', gap:5,
+            boxShadow:'0 2px 8px rgba(0,122,255,.3)',
+          }}>
+            <span style={{fontSize:17,lineHeight:1,marginTop:-1}}>+</span>
+            {activeTab==='gastos'?'Gasto':'MSI'}
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
-      <div style={{marginTop:4}}>
-        {activeTab==='gastos' && <ExpensesTab expenses={expenses} onToggle={onToggleExpense} onEdit={exp=>onEditExpense(exp,card.id)}/>}
-        {activeTab==='msi'    && <MsiTab msis={msis} onTogglePaid={onToggleMsiPaid} onEdit={item=>onEditMsi(item,card.id)}/>}
+      <div style={{marginTop:8}}>
+        {activeTab==='gastos'     && <ExpensesTab expenses={expenses} onToggle={onToggleExpense} onEdit={exp=>onEditExpense(exp,card.id)}/>}
+        {activeTab==='msi'        && <MsiTab msis={msis} onTogglePaid={onToggleMsiPaid} onEdit={item=>onEditMsi(item,card.id)}/>}
         {activeTab==='categorias' && <CategoriesTab expenses={expenses}/>}
       </div>
-
-      {/* FAB for detail (only on gastos/msi) */}
-      {activeTab!=='categorias' && (
-        <button className="fab" onClick={handleFabDetail}><IconPlus/></button>
-      )}
     </div>
   );
 }
@@ -1061,94 +1156,26 @@ function App() {
     setDetail(null);
   };
 
-  // ── Expense CRUD ──
-  // When saving: if NOT alreadyDiscounted, subtract from card.available
+  // ── Expense CRUD ── (card.available is NEVER touched — everything is derived)
   const saveExpense = (f, cardId) => {
-    const amount = parseFloat(f.amount)||0;
-    if (f.id) {
-      // editing: find old expense to figure out delta
-      setExpenses(p => {
-        const old = p.find(x=>x.id===f.id);
-        // Adjust card available: reverse old effect, apply new
-        const oldEffect = old ? (old.alreadyDiscounted ? 0 : -(parseFloat(old.amount)||0)) : 0;
-        const newEffect = f.alreadyDiscounted ? 0 : -amount;
-        const delta = newEffect - oldEffect;
-        if (delta !== 0) {
-          setCards(cp=>cp.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)+delta}:c));
-        }
-        return p.map(x=>x.id===f.id?{...f,cardId}:x);
-      });
-    } else {
-      // new expense
-      if (!f.alreadyDiscounted) {
-        setCards(p=>p.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)-amount}:c));
-      }
-      setExpenses(p=>[...p,{...f,id:uid(),cardId,paid:false}]);
-    }
+    if (f.id) setExpenses(p=>p.map(x=>x.id===f.id?{...f,cardId}:x));
+    else setExpenses(p=>[...p,{...f,id:uid(),cardId,paid:false}]);
   };
+  const deleteExpense = id => setExpenses(p=>p.filter(x=>x.id!==id));
+  const toggleExpense = id => setExpenses(p=>p.map(x=>x.id===id?{...x,paid:!x.paid}:x));
 
-  const deleteExpense = id => {
-    setExpenses(p=>{
-      const exp = p.find(x=>x.id===id);
-      if (exp) {
-        // Reverse the effect it had on available
-        const effect = exp.alreadyDiscounted ? 0 : (parseFloat(exp.amount)||0);
-        if (!exp.paid && !exp.alreadyDiscounted) {
-          // Was subtracted — add back
-          setCards(cp=>cp.map(c=>c.id===exp.cardId?{...c,available:parseFloat(c.available||0)+effect}:c));
-        }
-      }
-      return p.filter(x=>x.id!==id);
-    });
-  };
-
-  // Toggle paid: if paying → add amount to available; if unpaying → subtract
-  const toggleExpense = id => {
-    setExpenses(p => p.map(x => {
-      if (x.id!==id) return x;
-      const amount = parseFloat(x.amount)||0;
-      const nowPaid = !x.paid;
-      setCards(cp=>cp.map(c=>c.id===x.cardId
-        ? {...c, available: parseFloat(c.available||0) + (nowPaid ? amount : -amount)}
-        : c));
-      return {...x, paid: nowPaid};
-    }));
-  };
-
-  // ── MSI CRUD ──
+  // ── MSI CRUD ── (card.available is NEVER touched — everything is derived)
   const saveMsi = (f, cardId) => {
-    const monthly = parseFloat(f.monthly)||0;
-    if (f.id) {
-      setMsis(p => {
-        const old = p.find(x=>x.id===f.id);
-        const oldEffect = old ? (old.alreadyDiscounted ? 0 : -monthly) : 0;
-        const newEffect = f.alreadyDiscounted ? 0 : -monthly;
-        const delta = newEffect - oldEffect;
-        if (delta !== 0) {
-          setCards(cp=>cp.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)+delta}:c));
-        }
-        return p.map(x=>x.id===f.id?{...f,cardId}:x);
-      });
-    } else {
-      // New MSI: pre-paid cuotas are already gone from the bank — don't touch available for those.
-      // Only subtract one cuota if current month is not already discounted.
-      if (!f.alreadyDiscounted) {
-        setCards(p=>p.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)-monthly}:c));
-      }
-      setMsis(p=>[...p,{...f,id:uid(),cardId}]);
-    }
+    if (f.id) setMsis(p=>p.map(x=>x.id===f.id?{...f,cardId}:x));
+    else setMsis(p=>[...p,{...f,id:uid(),cardId}]);
   };
   const deleteMsi = id => setMsis(p=>p.filter(x=>x.id!==id));
   const toggleMsiPaid = (id, mk) => {
     setMsis(p=>p.map(x=>{
       if(x.id!==id) return x;
       const paid=[...(x.paid||[])];
-      const monthly = parseFloat(x.monthly)||0;
       const nowPaid = !paid.includes(mk);
-      setCards(cp=>cp.map(c=>c.id===x.cardId
-        ? {...c,available:parseFloat(c.available||0)+(nowPaid?monthly:-monthly)}
-        : c));
-      return {...x,paid:nowPaid?[...paid,mk]:paid.filter(k=>k!==mk)};
+      return {...x, paid: nowPaid ? [...paid,mk] : paid.filter(k=>k!==mk)};
     }));
   };
 
@@ -1164,9 +1191,8 @@ function App() {
     return {...x,paidMonths:pm.includes(mk)?pm.filter(k=>k!==mk):[...pm,mk]};
   }));
 
-  // ── FAB ──
+  // ── FAB — only for list screens ──
   const handleFab = () => {
-    if (detailCard) return; // detail screen has its own FAB
     if (tab==='cards') setCardModal('new');
     else setCommitModal('new');
   };
