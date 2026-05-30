@@ -166,25 +166,26 @@
   }
   .detail-tab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 
-  /* EXPENSE ITEMS */
-  .list-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin: 12px 16px; }
-  .expense-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; border-bottom: 1px solid var(--sep);
+  /* EXPENSE ITEMS — compact */
+  .expense-item-sm {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; cursor: pointer;
+    transition: background .12s;
   }
-  .expense-item:last-child { border-bottom: none; }
-  .expense-icon {
-    width: 38px; height: 38px; border-radius: 10px;
+  .expense-item-sm:active { background: var(--bg); }
+  .expense-icon-sm {
+    width: 30px; height: 30px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px; flex-shrink: 0; background: var(--bg);
+    font-size: 16px; flex-shrink: 0; background: var(--bg);
   }
-  .expense-info { flex: 1; min-width: 0; }
-  .expense-desc { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .expense-meta { font-size: 12px; color: var(--text2); margin-top: 1px; }
-  .expense-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-  .expense-amount { font-size: 15px; font-weight: 600; }
-  .expense-amount.paid { color: var(--text3); text-decoration: line-through; }
-  .expense-amount.already { color: var(--text2); }
+  .expense-info-sm { flex: 1; min-width: 0; }
+  .expense-desc-sm { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .expense-meta-sm { font-size: 11px; color: var(--text2); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .expense-amt-sm { font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .expense-amt-sm.paid { color: var(--text3); text-decoration: line-through; }
+
+  /* OLD expense items (kept for list view if any) */
+  .list-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin: 12px 16px; }
 
   /* CHECK BUTTON */
   .check-btn {
@@ -552,38 +553,73 @@ function CardListItem({ card, expenses, msis, onClick, onEdit }) {
 }
 
 // ─── DETAIL: EXPENSES TAB ────────────────────────────────────────────────────
+function fmtDateLabel(dateStr) {
+  if (!dateStr) return '';
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m-1, d);
+  const now = new Date();
+  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((todayMid - new Date(y,m-1,d)) / 86400000);
+  if (diff === 0) return 'Hoy';
+  if (diff === 1) return 'Ayer';
+  return date.toLocaleDateString('es-MX',{day:'numeric',month:'short',year: y!==now.getFullYear()?'numeric':undefined}).toUpperCase();
+}
+
 function ExpensesTab({ expenses, onToggle, onEdit }) {
   if (!expenses.length) return (
     <div className="empty"><div className="icon">🧾</div><p>Sin gastos. Toca + para agregar.</p></div>
   );
   const total = expenses.reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
-  const paid  = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const paidAmt = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+
+  // Group by date, sorted newest first
+  const sorted = [...expenses].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const groups = [];
+  sorted.forEach(exp => {
+    const d = exp.date||'';
+    const last = groups[groups.length-1];
+    if (last && last.date===d) last.items.push(exp);
+    else groups.push({ date:d, items:[exp] });
+  });
+
   return (
     <>
-      <div className="list-wrap">
-        {expenses.map(exp => (
-          <div key={exp.id} className="expense-item">
-            <div className="expense-icon">{exp.cat.split(' ')[0]}</div>
-            <div className="expense-info">
-              <div className="expense-desc">{exp.desc}</div>
-              <div className="expense-meta">{exp.cat.split(' ').slice(1).join(' ')} · {exp.date}</div>
-              {exp.alreadyDiscounted && (
-                <div className="expense-meta" style={{color:'var(--orange)'}}>⚡ Ya descontado del banco</div>
-              )}
-              {exp.note && <div className="expense-meta" style={{fontStyle:'italic'}}>{exp.note}</div>}
-              <button className="item-edit-btn" onClick={()=>onEdit(exp)}>editar</button>
-            </div>
-            <div className="expense-right">
-              <span className={`expense-amount ${exp.paid?'paid':''}`}>{fmt(exp.amount)}</span>
-              <CheckBtn checked={exp.paid} onToggle={()=>onToggle(exp.id)}/>
-            </div>
+      {groups.map(group => (
+        <div key={group.date} style={{marginBottom:2}}>
+          {/* Date header */}
+          <div style={{
+            fontSize:11, fontWeight:700, color:'var(--text2)',
+            letterSpacing:.6, textTransform:'uppercase',
+            padding:'10px 20px 4px',
+          }}>{fmtDateLabel(group.date)}</div>
+
+          <div className="list-wrap" style={{margin:'0 16px 0'}}>
+            {group.items.map((exp,idx) => (
+              <div key={exp.id} className="expense-item-sm"
+                style={{borderBottom: idx<group.items.length-1?'1px solid var(--sep)':'none'}}
+                onClick={()=>onEdit(exp)}>
+                <div className="expense-icon-sm">{exp.cat.split(' ')[0]}</div>
+                <div className="expense-info-sm">
+                  <div className="expense-desc-sm">{exp.desc}</div>
+                  <div className="expense-meta-sm">
+                    {exp.cat.split(' ').slice(1).join(' ')}
+                    {exp.note ? <> · <span style={{fontStyle:'italic'}}>{exp.note}</span></> : null}
+                  </div>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                  <span className={`expense-amt-sm ${exp.paid?'paid':''}`}>{fmt(exp.amount)}</span>
+                  <CheckBtn checked={exp.paid} onToggle={()=>onToggle(exp.id)}/>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="list-wrap" style={{padding:'4px 0'}}>
-        <div className="summary-row"><span>Total gastos</span><strong>{fmt(total)}</strong></div>
-        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Ya pagado</span><strong style={{color:'var(--green)'}}>{fmt(paid)}</strong></div>
-        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pendiente</span><strong style={{color:'var(--red)'}}>{fmt(total-paid)}</strong></div>
+        </div>
+      ))}
+
+      <div className="list-wrap" style={{margin:'10px 16px 0',padding:'2px 0'}}>
+        <div className="summary-row"><span>Total</span><strong>{fmt(total)}</strong></div>
+        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pagado</span><strong style={{color:'var(--green)'}}>{fmt(paidAmt)}</strong></div>
+        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pendiente</span><strong style={{color:'var(--red)'}}>{fmt(total-paidAmt)}</strong></div>
       </div>
     </>
   );
@@ -613,9 +649,6 @@ function MsiTab({ msis, onTogglePaid, onEdit }) {
               <span className="msi-total">{fmt(monthly*total)}</span>
             </div>
             <div className="msi-meta">{fmt(monthly)}/mes · {paid.length}/{total} cuotas · {fmt(monthly*paid.length)} pagado</div>
-            {item.alreadyDiscounted && (
-              <div style={{fontSize:11,color:'var(--orange)',marginBottom:4}}>⚡ Primera cuota ya descontada del banco</div>
-            )}
             <ProgressBar pct={pct}/>
             <div className="msi-dots">
               {months.map((m)=>(
@@ -820,41 +853,90 @@ function ExpenseForm({ initial, onSave, onDelete, onClose }) {
 }
 
 function MsiForm({ initial, onSave, onDelete, onClose }) {
-  const blank = { desc:'', monthly:'', total:'', startMonth:currentMonth, startYear:currentYear, paid:[], alreadyDiscounted:false };
+  const blank = {
+    desc:'', monthly:'', total:'', startMonth:currentMonth, startYear:currentYear,
+    paid:[], alreadyDiscounted:false, paidCount:''
+  };
   const [f, setF] = useState(initial
-    ? {...initial,
+    ? { ...initial,
         monthly: initial.monthly===0?'':initial.monthly,
         total:   initial.total===0?'':initial.total,
-        alreadyDiscounted: initial.alreadyDiscounted||false }
+        alreadyDiscounted: initial.alreadyDiscounted||false,
+        paidCount: '' }
     : blank);
   const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+
+  // Build preview of which cuotas will be pre-marked paid
+  const totalNum   = parseInt(f.total)||0;
+  const paidNum    = Math.min(parseInt(f.paidCount)||0, totalNum);
+  const isEditing  = !!initial;
+
   return (
     <Sheet title={initial?'Editar MSI':'Nuevo MSI / Diferido'} onClose={onClose}>
       <div className="sheet-body">
-        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. MacBook 12 MSI"/></div>
-        <div className="field"><label>Cuota Mensual ($)</label><input type="number" value={f.monthly} onChange={set('monthly')} placeholder="0.00" inputMode="decimal"/></div>
-        <div className="field"><label>Total de Cuotas</label><input type="number" min="1" max="60" value={f.total} onChange={set('total')} placeholder="12" inputMode="numeric"/></div>
+        <div className="field"><label>Descripción</label>
+          <input value={f.desc} onChange={set('desc')} placeholder="ej. MacBook 12 MSI"/>
+        </div>
+        <div className="field-row">
+          <div className="field"><label>Cuota Mensual ($)</label>
+            <input type="number" value={f.monthly} onChange={set('monthly')} placeholder="0.00" inputMode="decimal"/>
+          </div>
+          <div className="field"><label>Núm. de Cuotas</label>
+            <input type="number" min="1" max="60" value={f.total} onChange={set('total')} placeholder="12" inputMode="numeric"/>
+          </div>
+        </div>
         <div className="field-row">
           <div className="field"><label>Mes Inicio</label>
             <select value={f.startMonth} onChange={set('startMonth')}>
               {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
             </select>
           </div>
-          <div className="field"><label>Año</label><input type="number" min="2020" max="2035" value={f.startYear} onChange={set('startYear')}/></div>
+          <div className="field"><label>Año</label>
+            <input type="number" min="2020" max="2035" value={f.startYear} onChange={set('startYear')}/>
+          </div>
         </div>
+
+        {/* Only show paidCount when creating new */}
+        {!isEditing && (
+          <div className="field">
+            <label>¿Cuántas cuotas ya pagaste?</label>
+            <input type="number" min="0" max={totalNum||60} value={f.paidCount}
+              onChange={set('paidCount')} placeholder="0 si empiezas desde cero"
+              inputMode="numeric"/>
+            {paidNum > 0 && totalNum > 0 && (
+              <div style={{fontSize:12,color:'var(--blue)',marginTop:5,padding:'6px 0'}}>
+                Las cuotas 1–{paidNum} se marcarán como pagadas automáticamente
+              </div>
+            )}
+          </div>
+        )}
+
         <Toggle
           on={f.alreadyDiscounted}
           onToggle={()=>setF(p=>({...p,alreadyDiscounted:!p.alreadyDiscounted}))}
-          label="¿Primera cuota ya descontada del saldo?"
+          label="¿La cuota actual ya fue descontada?"
           sub={f.alreadyDiscounted
-            ? "✅ El banco ya cargó la primera cuota — no se restará al guardar"
-            : "⚠️ Sin cargo previo — la cuota mensual se restará del disponible al guardar"}
+            ? "✅ No se restará del disponible al guardar"
+            : "⚠️ Se restará una cuota del disponible al guardar"}
         />
       </div>
       <div className="sheet-actions">
         {initial && <button className="btn-danger" onClick={()=>{onDelete(initial.id);onClose();}}>Eliminar</button>}
         <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn-primary" onClick={()=>{if(f.desc&&f.monthly){onSave({...f,paid:initial?initial.paid:[]});onClose();}}}>Guardar</button>
+        <button className="btn-primary" onClick={()=>{
+          if (!f.desc || !f.monthly) return;
+          // Build pre-paid keys for the first paidCount cuotas
+          let prePaid = initial ? initial.paid : [];
+          if (!isEditing && paidNum > 0) {
+            prePaid = Array.from({length:paidNum},(_,i)=>{
+              const mi=(parseInt(f.startMonth)+i)%12;
+              const yi=parseInt(f.startYear)+Math.floor((parseInt(f.startMonth)+i)/12);
+              return monthKey(yi,mi);
+            });
+          }
+          onSave({...f, paid: prePaid});
+          onClose();
+        }}>Guardar</button>
       </div>
     </Sheet>
   );
@@ -1039,8 +1121,7 @@ function App() {
     if (f.id) {
       setMsis(p => {
         const old = p.find(x=>x.id===f.id);
-        // Reverse old effect, apply new (only on first cuota deduction)
-        const oldEffect = old ? (old.alreadyDiscounted ? 0 : -(parseFloat(old.monthly)||0)) : 0;
+        const oldEffect = old ? (old.alreadyDiscounted ? 0 : -monthly) : 0;
         const newEffect = f.alreadyDiscounted ? 0 : -monthly;
         const delta = newEffect - oldEffect;
         if (delta !== 0) {
@@ -1049,11 +1130,12 @@ function App() {
         return p.map(x=>x.id===f.id?{...f,cardId}:x);
       });
     } else {
-      // New MSI: if not already discounted, subtract first cuota from available
+      // New MSI: pre-paid cuotas are already gone from the bank — don't touch available for those.
+      // Only subtract one cuota if current month is not already discounted.
       if (!f.alreadyDiscounted) {
         setCards(p=>p.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)-monthly}:c));
       }
-      setMsis(p=>[...p,{...f,id:uid(),cardId,paid:[]}]);
+      setMsis(p=>[...p,{...f,id:uid(),cardId}]);
     }
   };
   const deleteMsi = id => setMsis(p=>p.filter(x=>x.id!==id));
