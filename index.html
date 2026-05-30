@@ -462,61 +462,68 @@ function Sheet({ title, onClose, children }) {
   );
 }
 
-// ─── CARD SUMMARY (list view) ─────────────────────────────────────────────
-// Model: card.available is the base balance the user entered and NEVER mutates.
-// Everything is derived from it each render:
-//   - Expenses with alreadyDiscounted=false and paid=false → subtract from available (bank hasn't taken it yet)
-//   - Expenses with paid=true → no adjustment needed (they were never subtracted OR were subtracted and now freed)
-//     Actually: alreadyDiscounted=false,paid=false → -amount (pending, not yet in bank)
-//               alreadyDiscounted=false,paid=true  → 0 (user paid it, it freed up credit)
-//               alreadyDiscounted=true,paid=*      → 0 (bank already took it, already reflected in base)
-//   - MSI: paidCount cuotas are pre-existing — already in the base available.
-//          Only NEW paid cuotas (index >= paidCount) add back to available.
-//          Remaining cuotas (unpaid, index >= paidCount) subtract from available as pending debt.
+// ─── FINANCIAL MODEL ─────────────────────────────────────────────────────────
+// card.available = exact bank balance at the moment the user entered it. NEVER mutated.
+// Rules confirmed by user:
+//   EXPENSES:
+//     toggle OFF + not paid  → bank hasn't charged it yet    → subtract from available
+//     toggle OFF + paid      → bank charged & user paid back → restore (no net effect vs base)
+//     toggle ON  + any       → bank already reflected it     → no adjustment at all
+//   MSI:
+//     bank already reflects paidCount cuotas in the base available.
+//     future unpaid cuotas (index >= paidCount, not yet palomeadas) → subtract (reserved debt)
+//     newly palomeada cuotas (index >= paidCount, now ticked)       → add back (bank charged, credit freed)
+//   Net MSI formula per MSI:
+//     newlyPaid  = palomeadas that are NOT pre-existing (paid.length - paidCount, min 0)
+//     stillOwed  = total - paid.length   (cuotas not yet palomeadas, regardless of pre)
+//     adjustment = newlyPaid * monthly - stillOwed * monthly
+//               = (paid.length - paidCount - (total - paid.length)) * monthly   [simplified]
+//               = (2*paid.length - paidCount - total) * monthly
+
 function computeCardTotals(card, expenses, msis) {
   const totalCredit = parseFloat(card.total)||0;
   const extension   = parseFloat(card.extension)||0;
   const baseAvail   = parseFloat(card.available)||0;
 
-  // Expenses adjustment:
-  // pending (not paid, not already discounted) → bank hasn't taken it → subtract
-  let expAdjust = 0;
+  // ── Expense adjustment ──
+  // toggle OFF + not paid → pending charge, bank hasn't taken it → subtract
+  // toggle OFF + paid     → bank took it, freed credit → no change from base (subtract was never done)
+  // toggle ON  + any      → already in base → 0
+  let expAdj = 0;
   expenses.forEach(e => {
-    if (!e.alreadyDiscounted && !e.paid) expAdjust -= (parseFloat(e.amount)||0);
+    if (!e.alreadyDiscounted && !e.paid) expAdj -= (parseFloat(e.amount)||0);
   });
 
-  // MSI adjustment:
-  // For each MSI, paidCount = how many were pre-existing (already in base).
-  // paid[] = all palomeadas (includes pre-existing AND newly paid).
-  // newlyPaid = paid.length - paidCount (cuotas the user ticked AFTER adding the MSI)
-  // remaining = total - paid.length (cuotas still unpaid)
-  // Effect on realAvail: remaining cuotas are still pending → subtract them as "reserved" debt
-  // (they will free up credit as they get palomeadas)
-  let msiAdjust = 0;
+  // ── MSI adjustment ──
+  let msiAdj = 0;
   msis.forEach(m => {
-    const total    = parseInt(m.total)||0;
-    const monthly  = parseFloat(m.monthly)||0;
-    const paidKeys = m.paid||[];
-    const paidCount= parseInt(m.paidCount)||0; // pre-existing cuotas entered by user
-    // Remaining unpaid cuotas are pending debt → they reduce effective available
-    const remaining = total - paidKeys.length;
-    msiAdjust -= remaining * monthly;
-    // Newly paid cuotas (beyond the pre-existing ones) freed up credit → add back
+    const total     = parseInt(m.total)||0;
+    const monthly   = parseFloat(m.monthly)||0;
+    const paidKeys  = m.paid||[];
+    const paidCount = parseInt(m.paidCount)||0; // pre-existing, already in base
+
+    // Cuotas the user has newly palomeaded (beyond the pre-existing ones)
     const newlyPaid = Math.max(0, paidKeys.length - paidCount);
-    msiAdjust += newlyPaid * monthly;
+    // Cuotas still pending (not yet palomeaded at all)
+    const stillOwed = total - paidKeys.length;
+
+    // Newly paid ones freed up credit (bank charged them, we add back)
+    msiAdj += newlyPaid * monthly;
+    // Still-owed ones are reserved debt (bank will charge them) → subtract
+    msiAdj -= stillOwed * monthly;
   });
 
-  const realAvail = baseAvail + expAdjust + msiAdjust;
-  const used      = totalCredit - realAvail;
-  const usedPct   = totalCredit > 0 ? (used / totalCredit) * 100 : 0;
+  const realAvail = baseAvail + expAdj + msiAdj;
+  const used      = (totalCredit + extension) - realAvail;
+  const usedPct   = (totalCredit + extension) > 0 ? (used / (totalCredit + extension)) * 100 : 0;
 
-  // Total to pay = pending expenses + remaining MSI installments
-  const unpaidExpTotal = expenses.filter(e=>!e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
-  const remainMsiTotal = msis.reduce((a,m)=>{
-    const remaining = (parseInt(m.total)||0) - (m.paid||[]).length;
-    return a + remaining * (parseFloat(m.monthly)||0);
+  // "Total a pagar": all unpaid expenses + all remaining MSI cuotas
+  const unpaidExp = expenses.filter(e=>!e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const pendMsi   = msis.reduce((a,m)=>{
+    const stillOwed = (parseInt(m.total)||0) - (m.paid||[]).length;
+    return a + stillOwed * (parseFloat(m.monthly)||0);
   },0);
-  const totalToPay = unpaidExpTotal + remainMsiTotal;
+  const totalToPay = unpaidExp + pendMsi;
 
   return { totalCredit, extension, realAvail, used, usedPct, totalToPay,
     cutDays: daysUntil(parseInt(card.cutDay)||1),
@@ -599,11 +606,9 @@ function fmtDateLabel(dateStr) {
 }
 
 function ExpensesTab({ expenses, onToggle, onEdit }) {
-  if (!expenses.length) return (
-    <div className="empty"><div className="icon">🧾</div><p>Sin gastos. Toca + para agregar.</p></div>
-  );
-  const total = expenses.reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
-  const paidAmt = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const total    = expenses.reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const paidAmt  = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const pendAmt  = expenses.filter(e=>!e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
 
   // Group by date, sorted newest first
   const sorted = [...expenses].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -617,43 +622,58 @@ function ExpensesTab({ expenses, onToggle, onEdit }) {
 
   return (
     <>
-      {groups.map(group => (
-        <div key={group.date} style={{marginBottom:2}}>
-          {/* Date header */}
-          <div style={{
-            fontSize:11, fontWeight:700, color:'var(--text2)',
-            letterSpacing:.6, textTransform:'uppercase',
-            padding:'10px 20px 4px',
-          }}>{fmtDateLabel(group.date)}</div>
+      {/* ── Summary at top ── */}
+      <div style={{display:'flex',gap:10,padding:'4px 16px 8px'}}>
+        <div style={{
+          flex:1, background:'var(--card)', borderRadius:'var(--radius-sm)',
+          boxShadow:'var(--shadow)', padding:'10px 14px',
+        }}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:.6,marginBottom:4}}>Pendiente</div>
+          <div style={{fontSize:18,fontWeight:700,color: pendAmt>0?'var(--red)':'var(--text)'}}>{fmt(pendAmt)}</div>
+        </div>
+        <div style={{
+          flex:1, background:'var(--card)', borderRadius:'var(--radius-sm)',
+          boxShadow:'var(--shadow)', padding:'10px 14px',
+        }}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:.6,marginBottom:4}}>Pagado</div>
+          <div style={{fontSize:18,fontWeight:700,color:'var(--green)'}}>{fmt(paidAmt)}</div>
+        </div>
+      </div>
 
-          <div className="list-wrap" style={{margin:'0 16px 0'}}>
-            {group.items.map((exp,idx) => (
-              <div key={exp.id} className="expense-item-sm"
-                style={{borderBottom: idx<group.items.length-1?'1px solid var(--sep)':'none'}}
-                onClick={()=>onEdit(exp)}>
-                <div className="expense-icon-sm">{exp.cat.split(' ')[0]}</div>
-                <div className="expense-info-sm">
-                  <div className="expense-desc-sm">{exp.desc}</div>
-                  <div className="expense-meta-sm">
-                    {exp.cat.split(' ').slice(1).join(' ')}
-                    {exp.note ? <> · <span style={{fontStyle:'italic'}}>{exp.note}</span></> : null}
+      {/* ── Grouped list ── */}
+      {expenses.length === 0
+        ? <div className="empty"><div className="icon">🧾</div><p>Sin gastos. Toca + Gasto para agregar.</p></div>
+        : groups.map(group => (
+          <div key={group.date} style={{marginBottom:4}}>
+            <div style={{
+              fontSize:11,fontWeight:700,color:'var(--text2)',
+              letterSpacing:.6,textTransform:'uppercase',
+              padding:'8px 20px 4px',
+            }}>{fmtDateLabel(group.date)}</div>
+
+            <div className="list-wrap" style={{margin:'0 16px'}}>
+              {group.items.map((exp,idx) => (
+                <div key={exp.id} className="expense-item-sm"
+                  style={{borderBottom: idx<group.items.length-1?'1px solid var(--sep)':'none'}}
+                  onClick={()=>onEdit(exp)}>
+                  <div className="expense-icon-sm">{exp.cat.split(' ')[0]}</div>
+                  <div className="expense-info-sm">
+                    <div className="expense-desc-sm">{exp.desc}</div>
+                    <div className="expense-meta-sm">
+                      {exp.cat.split(' ').slice(1).join(' ')}
+                      {exp.note ? <> · <em>{exp.note}</em></> : null}
+                    </div>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                    <span className={`expense-amt-sm ${exp.paid?'paid':''}`}>{fmt(exp.amount)}</span>
+                    <CheckBtn checked={exp.paid} onToggle={()=>onToggle(exp.id)}/>
                   </div>
                 </div>
-                <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                  <span className={`expense-amt-sm ${exp.paid?'paid':''}`}>{fmt(exp.amount)}</span>
-                  <CheckBtn checked={exp.paid} onToggle={()=>onToggle(exp.id)}/>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
-
-      <div className="list-wrap" style={{margin:'10px 16px 0',padding:'2px 0'}}>
-        <div className="summary-row"><span>Total</span><strong>{fmt(total)}</strong></div>
-        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pagado</span><strong style={{color:'var(--green)'}}>{fmt(paidAmt)}</strong></div>
-        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pendiente</span><strong style={{color:'var(--red)'}}>{fmt(total-paidAmt)}</strong></div>
-      </div>
+        ))
+      }
     </>
   );
 }
