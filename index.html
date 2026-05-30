@@ -11,7 +11,6 @@
   :root {
     --bg: #f2f2f7;
     --card: #ffffff;
-    --card2: #f9f9fb;
     --text: #1c1c1e;
     --text2: #636366;
     --text3: #aeaeb2;
@@ -25,25 +24,44 @@
     --radius: 16px;
     --radius-sm: 10px;
     --shadow: 0 2px 16px rgba(0,0,0,0.07);
-    --shadow-lg: 0 8px 32px rgba(0,0,0,0.13);
     --nav-h: 80px;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body, #root { height: 100%; }
+  html, body, #root { height: 100%; overflow: hidden; }
   body {
     font-family: -apple-system, 'SF Pro Display', 'SF Pro Text', BlinkMacSystemFont, system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    overscroll-behavior: none;
+    background: var(--bg); color: var(--text); overscroll-behavior: none;
   }
   #root { display: flex; flex-direction: column; max-width: 430px; margin: 0 auto; position: relative; }
 
-  /* LAYOUT */
-  .screen { flex: 1; overflow-y: auto; padding: 0 0 calc(var(--nav-h) + var(--safe-bottom) + 24px); }
+  /* SCREEN STACK */
+  .app-stack { position: relative; flex: 1; overflow: hidden; }
+  .screen-view {
+    position: absolute; inset: 0;
+    overflow-y: auto; overflow-x: hidden;
+    padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 24px);
+    transition: transform .35s cubic-bezier(.4,0,.2,1), opacity .35s;
+    will-change: transform;
+  }
+  .screen-view.slide-in  { transform: translateX(0); opacity: 1; }
+  .screen-view.slide-out { transform: translateX(-30%); opacity: 0; pointer-events: none; }
+  .screen-view.slide-right { transform: translateX(100%); opacity: 0; pointer-events: none; }
+
+  /* HEADER */
   .screen-header { padding: 56px 20px 8px; }
-  .screen-title { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; }
+  .screen-title { font-size: 34px; font-weight: 700; letter-spacing: -.5px; }
   .screen-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .detail-header {
+    padding: 52px 16px 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 3px;
+    background: none; border: none; color: var(--blue);
+    font-size: 17px; font-weight: 400; cursor: pointer; padding: 4px 0;
+  }
+  .back-btn svg { width: 20px; height: 20px; }
 
   /* NAV */
   .bottom-nav {
@@ -51,7 +69,7 @@
     width: 100%; max-width: 430px;
     height: calc(var(--nav-h) + var(--safe-bottom));
     padding-bottom: var(--safe-bottom);
-    background: rgba(255,255,255,0.88);
+    background: rgba(255,255,255,.88);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border-top: 1px solid var(--sep);
@@ -65,41 +83,37 @@
   }
   .nav-btn.active { color: var(--blue); }
   .nav-btn svg { width: 26px; height: 26px; }
-  .nav-btn span { font-size: 10px; font-weight: 500; letter-spacing: .2px; }
+  .nav-btn span { font-size: 10px; font-weight: 500; }
 
   /* FAB */
   .fab {
     position: fixed;
     bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
     right: calc(50% - 210px + 16px);
-    width: 52px; height: 52px;
-    border-radius: 50%;
-    background: var(--blue);
-    color: #fff; font-size: 28px; line-height: 1;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--blue); color: #fff;
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 4px 20px rgba(0,122,255,.4);
     border: none; cursor: pointer; z-index: 49;
     transition: transform .15s, box-shadow .15s;
   }
-  .fab:active { transform: scale(.93); box-shadow: 0 2px 10px rgba(0,122,255,.3); }
+  .fab:active { transform: scale(.93); }
 
-  /* CARDS */
-  .section-label {
-    font-size: 13px; font-weight: 600; color: var(--text2);
-    text-transform: uppercase; letter-spacing: .5px;
-    padding: 0 20px; margin: 20px 0 8px;
-  }
-  .card {
+  /* CARD WIDGET (list) */
+  .card-list-item {
     background: var(--card); border-radius: var(--radius);
     box-shadow: var(--shadow); margin: 0 16px 12px;
     overflow: hidden; animation: fadeUp .3s ease both;
+    cursor: pointer; transition: transform .15s, box-shadow .15s;
+    -webkit-user-select: none; user-select: none;
   }
+  .card-list-item:active { transform: scale(.985); box-shadow: 0 1px 8px rgba(0,0,0,.06); }
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* CREDIT CARD WIDGET */
+  /* CC HEADER */
   .cc-header {
     border-radius: var(--radius) var(--radius) 0 0;
     padding: 18px 18px 14px;
@@ -115,14 +129,11 @@
     width: 90px; height: 90px; border-radius: 50%;
     background: rgba(255,255,255,.07);
   }
-  .cc-name { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+  .cc-name { font-size: 15px; font-weight: 700; }
   .cc-chips { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
-  .cc-chip {
-    font-size: 10px; font-weight: 600; padding: 2px 7px;
-    border-radius: 20px; background: rgba(255,255,255,.2);
-  }
+  .cc-chip { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; background: rgba(255,255,255,.2); }
   .cc-amount { font-size: 32px; font-weight: 700; margin-top: 10px; letter-spacing: -1px; }
-  .cc-amount-label { font-size: 11px; opacity: .75; margin-top: 0px; }
+  .cc-amount-label { font-size: 11px; opacity: .75; }
   .cc-body { padding: 14px 18px 16px; }
   .cc-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
   .cc-stat { display: flex; flex-direction: column; }
@@ -133,82 +144,87 @@
   .bar-fill { height: 100%; border-radius: 4px; transition: width .5s cubic-bezier(.4,0,.2,1); }
   .bar-labels { display: flex; justify-content: space-between; margin-top: 4px; }
   .bar-labels span { font-size: 11px; color: var(--text2); }
-  .cc-days { display: flex; gap: 12px; margin-top: 8px; }
+  .cc-days { display: flex; gap: 10px; margin-top: 8px; }
   .cc-day-badge {
     flex: 1; background: var(--bg); border-radius: var(--radius-sm);
-    padding: 8px 10px; text-align: center;
+    padding: 8px 6px; text-align: center;
   }
   .cc-day-badge .num { font-size: 20px; font-weight: 700; }
-  .cc-day-badge .lbl { font-size: 10px; color: var(--text2); margin-top: 2px; }
-  .cc-actions { display: flex; gap: 8px; padding: 0 18px 14px; }
-  .cc-action-btn {
-    flex: 1; padding: 9px 0; border-radius: var(--radius-sm);
-    border: none; font-size: 13px; font-weight: 600;
-    cursor: pointer; background: var(--bg); color: var(--blue);
-    transition: opacity .15s;
+  .cc-day-badge .lbl { font-size: 10px; color: var(--text2); margin-top: 1px; }
+
+  /* DETAIL TABS */
+  .detail-tabs {
+    display: flex; margin: 4px 16px 0;
+    background: var(--bg); border-radius: var(--radius-sm);
+    padding: 3px;
   }
-  .cc-action-btn:active { opacity: .7; }
+  .detail-tab {
+    flex: 1; padding: 7px 0; border-radius: 8px;
+    font-size: 13px; font-weight: 600; border: none;
+    background: none; color: var(--text2); cursor: pointer;
+    transition: all .2s;
+  }
+  .detail-tab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 
-  /* GRADIENTS */
-  .grad-yellow  { background: linear-gradient(135deg, #c8971a, #e8b332); }
-  .grad-red     { background: linear-gradient(135deg, #b71c1c, #e53935); }
-  .grad-blue    { background: linear-gradient(135deg, #0d47a1, #1976d2); }
-  .grad-skyblue { background: linear-gradient(135deg, #0277bd, #039be5); }
-  .grad-purple  { background: linear-gradient(135deg, #6a1b9a, #ab47bc); }
-  .grad-orange  { background: linear-gradient(135deg, #bf360c, #f4511e); }
-  .grad-green   { background: linear-gradient(135deg, #1b5e20, #388e3c); }
-
-  /* LIST ITEMS */
-  .list-section { margin: 0 16px 12px; }
-  .list-section .card { margin: 0; border-radius: 0; box-shadow: none; }
-  .list-section .card:first-child { border-radius: var(--radius) var(--radius) 0 0; }
-  .list-section .card:last-child { border-radius: 0 0 var(--radius) var(--radius); }
-  .list-section .card:only-child { border-radius: var(--radius); }
-  .list-section-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-
+  /* EXPENSE ITEMS */
+  .list-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin: 12px 16px; }
   .expense-item {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 16px; border-bottom: 1px solid var(--sep);
-    transition: background .15s;
   }
   .expense-item:last-child { border-bottom: none; }
-  .expense-item:active { background: var(--bg); }
   .expense-icon {
-    width: 36px; height: 36px; border-radius: 10px;
+    width: 38px; height: 38px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
+    font-size: 20px; flex-shrink: 0; background: var(--bg);
   }
   .expense-info { flex: 1; min-width: 0; }
   .expense-desc { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .expense-meta { font-size: 12px; color: var(--text2); margin-top: 1px; }
-  .expense-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .expense-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
   .expense-amount { font-size: 15px; font-weight: 600; }
   .expense-amount.paid { color: var(--text3); text-decoration: line-through; }
+  .expense-amount.already { color: var(--text2); }
+
+  /* CHECK BUTTON */
   .check-btn {
-    width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--sep);
-    background: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 2px solid var(--sep);
+    background: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
     transition: all .2s; flex-shrink: 0;
   }
   .check-btn.checked { background: var(--green); border-color: var(--green); }
-  .check-btn svg { width: 12px; height: 12px; color: #fff; }
+  .check-btn svg { width: 13px; height: 13px; color: #fff; }
 
   /* MSI */
   .msi-item { padding: 14px 16px; border-bottom: 1px solid var(--sep); }
   .msi-item:last-child { border-bottom: none; }
-  .msi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .msi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .msi-desc { font-size: 15px; font-weight: 500; }
   .msi-total { font-size: 15px; font-weight: 600; color: var(--blue); }
-  .msi-progress { margin: 6px 0; }
+  .msi-meta { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
   .msi-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
   .msi-dot {
-    width: 28px; height: 28px; border-radius: 8px;
+    width: 30px; height: 30px; border-radius: 8px;
     border: 2px solid var(--sep); background: none;
     display: flex; align-items: center; justify-content: center;
-    font-size: 10px; font-weight: 600; color: var(--text2);
-    cursor: pointer; transition: all .2s;
+    font-size: 9px; font-weight: 700; color: var(--text2);
+    cursor: pointer; transition: all .2s; line-height: 1; text-align: center;
   }
   .msi-dot.paid { background: var(--blue); border-color: var(--blue); color: #fff; }
-  .msi-meta { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* CATEGORY CHART */
+  .cat-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; border-bottom: 1px solid var(--sep);
+  }
+  .cat-row:last-child { border-bottom: none; }
+  .cat-emoji { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+  .cat-info { flex: 1; }
+  .cat-name { font-size: 14px; font-weight: 500; }
+  .cat-bar-wrap { margin-top: 4px; }
+  .cat-amount { font-size: 14px; font-weight: 600; flex-shrink: 0; }
 
   /* MODAL / SHEET */
   .overlay {
@@ -224,29 +240,20 @@
     max-height: 92vh; overflow-y: auto;
     animation: slideUp .3s cubic-bezier(.4,0,.2,1);
   }
-  @keyframes slideUp {
-    from { transform: translateY(100%); }
-    to   { transform: translateY(0); }
-  }
-  .sheet-handle {
-    width: 36px; height: 4px; border-radius: 2px;
-    background: var(--sep); margin: 10px auto 4px;
-  }
-  .sheet-title {
-    font-size: 17px; font-weight: 700; text-align: center;
-    padding: 10px 20px 14px;
-  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--sep); margin: 10px auto 4px; }
+  .sheet-title { font-size: 17px; font-weight: 700; text-align: center; padding: 10px 20px 14px; }
   .sheet-body { padding: 0 20px; }
   .field { margin-bottom: 14px; }
   .field label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .4px; display: block; margin-bottom: 6px; }
   .field input, .field select, .field textarea {
     width: 100%; background: var(--bg); border: none; border-radius: var(--radius-sm);
     padding: 12px 14px; font-size: 16px; color: var(--text);
-    font-family: inherit; outline: none; transition: background .15s;
-    -webkit-appearance: none; appearance: none;
+    font-family: inherit; outline: none; -webkit-appearance: none; appearance: none;
+    transition: background .15s;
   }
-  .field textarea { resize: none; min-height: 72px; }
   .field input:focus, .field select:focus, .field textarea:focus { background: #e9e9ef; }
+  .field textarea { resize: none; min-height: 72px; }
   .field-row { display: flex; gap: 10px; }
   .field-row .field { flex: 1; }
   .sheet-actions { display: flex; gap: 10px; padding: 16px 20px 0; }
@@ -254,120 +261,110 @@
     flex: 1; padding: 14px; border-radius: var(--radius-sm);
     background: var(--blue); color: #fff;
     font-size: 16px; font-weight: 600; border: none; cursor: pointer;
-    transition: opacity .15s;
   }
-  .btn-primary:active { opacity: .8; }
-  .btn-danger {
-    padding: 14px; border-radius: var(--radius-sm);
-    background: rgba(255,59,48,.1); color: var(--red);
-    font-size: 16px; font-weight: 600; border: none; cursor: pointer;
+  .btn-danger { padding: 14px; border-radius: var(--radius-sm); background: rgba(255,59,48,.1); color: var(--red); font-size: 16px; font-weight: 600; border: none; cursor: pointer; }
+  .btn-secondary { flex: 1; padding: 14px; border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-size: 16px; font-weight: 600; border: none; cursor: pointer; }
+
+  /* TOGGLE */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg); border-radius: var(--radius-sm);
+    padding: 13px 14px; margin-bottom: 14px;
   }
-  .btn-secondary {
-    flex: 1; padding: 14px; border-radius: var(--radius-sm);
-    background: var(--bg); color: var(--text);
-    font-size: 16px; font-weight: 600; border: none; cursor: pointer;
+  .toggle-label { font-size: 14px; font-weight: 500; flex: 1; padding-right: 12px; }
+  .toggle-label small { display: block; font-size: 11px; color: var(--text2); font-weight: 400; margin-top: 2px; }
+  .toggle-switch {
+    position: relative; width: 51px; height: 31px; flex-shrink: 0;
+    border-radius: 16px; background: #e5e5ea;
+    cursor: pointer; border: none; transition: background .25s;
   }
+  .toggle-switch.on { background: var(--green); }
+  .toggle-knob {
+    position: absolute; top: 2px; left: 2px;
+    width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  .toggle-switch.on .toggle-knob { transform: translateX(20px); }
 
   /* COLOR PICKER */
   .color-picker { display: flex; gap: 10px; flex-wrap: wrap; }
-  .color-dot {
-    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
-    border: 3px solid transparent; transition: transform .15s;
-  }
+  .color-dot { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: transform .15s; }
   .color-dot.selected { border-color: var(--text); transform: scale(1.15); }
 
-  /* COMMITMENT */
+  /* GRADIENTS */
+  .grad-yellow  { background: linear-gradient(135deg, #c8971a, #e8b332); }
+  .grad-red     { background: linear-gradient(135deg, #b71c1c, #e53935); }
+  .grad-blue    { background: linear-gradient(135deg, #0d47a1, #1976d2); }
+  .grad-skyblue { background: linear-gradient(135deg, #0277bd, #039be5); }
+  .grad-purple  { background: linear-gradient(135deg, #6a1b9a, #ab47bc); }
+  .grad-orange  { background: linear-gradient(135deg, #bf360c, #f4511e); }
+  .grad-green   { background: linear-gradient(135deg, #1b5e20, #388e3c); }
+
+  /* COMMITMENTS */
+  .month-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 16px; scrollbar-width: none; }
+  .month-tabs::-webkit-scrollbar { display: none; }
+  .month-tab { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; background: var(--bg); color: var(--text2); border: none; cursor: pointer; transition: all .2s; }
+  .month-tab.active { background: var(--blue); color: #fff; }
   .commit-item { padding: 14px 16px; border-bottom: 1px solid var(--sep); }
   .commit-item:last-child { border-bottom: none; }
   .commit-top { display: flex; justify-content: space-between; align-items: center; }
   .commit-desc { font-size: 15px; font-weight: 500; }
   .commit-amount { font-size: 15px; font-weight: 600; }
   .commit-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
-  .month-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 16px; scrollbar-width: none; }
-  .month-tabs::-webkit-scrollbar { display: none; }
-  .month-tab {
-    flex-shrink: 0; padding: 6px 14px; border-radius: 20px;
-    font-size: 13px; font-weight: 600; background: var(--bg);
-    color: var(--text2); border: none; cursor: pointer; transition: all .2s;
-  }
-  .month-tab.active { background: var(--blue); color: #fff; }
-
-  /* EMPTY STATE */
-  .empty { text-align: center; padding: 40px 20px; color: var(--text2); }
-  .empty .icon { font-size: 42px; margin-bottom: 8px; }
-  .empty p { font-size: 14px; }
-
-  /* DELETE SWIPE HINT */
-  .item-delete-btn {
-    background: none; border: none; color: var(--red);
-    font-size: 12px; font-weight: 600; cursor: pointer;
-    padding: 4px 0; opacity: .7;
-  }
-  .item-delete-btn:active { opacity: 1; }
-
-  /* SUMMARY ROW */
-  .summary-row {
-    display: flex; justify-content: space-between;
-    padding: 12px 20px; border-top: 1px solid var(--sep);
-    margin-top: 4px;
-  }
+  .summary-row { display: flex; justify-content: space-between; padding: 12px 20px; border-top: 1px solid var(--sep); }
   .summary-row span { font-size: 13px; color: var(--text2); }
   .summary-row strong { font-size: 13px; font-weight: 700; }
 
-  .badge {
-    display: inline-block; font-size: 11px; font-weight: 700;
-    padding: 2px 8px; border-radius: 20px; margin-left: 6px;
-  }
-  .badge-blue { background: rgba(0,122,255,.12); color: var(--blue); }
-  .badge-green { background: rgba(52,199,89,.12); color: var(--green); }
-  .badge-red { background: rgba(255,59,48,.12); color: var(--red); }
-
+  .item-edit-btn { background: none; border: none; color: var(--blue); font-size: 12px; font-weight: 600; cursor: pointer; padding: 3px 0; opacity: .7; }
+  .empty { text-align: center; padding: 40px 20px; color: var(--text2); }
+  .empty .icon { font-size: 42px; margin-bottom: 8px; }
+  .empty p { font-size: 14px; }
   select option { color: #000; }
-  .divider { height: 1px; background: var(--sep); margin: 0 20px; }
 </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script type="text/babel">
 const { useState, useEffect, useCallback, useMemo } = React;
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
 const COLORS = [
-  { id: 'yellow',  label: 'Amarillo', cls: 'grad-yellow',  hex: '#e8b332' },
-  { id: 'red',     label: 'Rojo',     cls: 'grad-red',     hex: '#e53935' },
-  { id: 'blue',    label: 'Azul',     cls: 'grad-blue',    hex: '#1976d2' },
-  { id: 'skyblue', label: 'Cielo',    cls: 'grad-skyblue', hex: '#039be5' },
-  { id: 'purple',  label: 'Morado',   cls: 'grad-purple',  hex: '#ab47bc' },
-  { id: 'orange',  label: 'Naranja',  cls: 'grad-orange',  hex: '#f4511e' },
-  { id: 'green',   label: 'Verde',    cls: 'grad-green',   hex: '#388e3c' },
+  { id:'yellow',  cls:'grad-yellow',  hex:'#e8b332' },
+  { id:'red',     cls:'grad-red',     hex:'#e53935' },
+  { id:'blue',    cls:'grad-blue',    hex:'#1976d2' },
+  { id:'skyblue', cls:'grad-skyblue', hex:'#039be5' },
+  { id:'purple',  cls:'grad-purple',  hex:'#ab47bc' },
+  { id:'orange',  cls:'grad-orange',  hex:'#f4511e' },
+  { id:'green',   cls:'grad-green',   hex:'#388e3c' },
 ];
 
-const CATS = ['🛒 Supermercado','🍽️ Restaurante','⛽ Gasolina','💊 Salud','👗 Ropa',
-              '🎬 Entretenimiento','🏠 Hogar','✈️ Viaje','💻 Tecnología','📦 Otro'];
+const CATS = [
+  '🛒 Supermercado','🍽️ Comida','⛽ Gasolina','🚗 Auto',
+  '🏥 Salud','🎬 Entretenimiento','👕 Ropa','🏠 Hogar',
+  '🔧 Servicios','✈️ Viajes','🎓 Educación','💊 Farmacia','📦 Otro',
+];
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-
-const uid = () => Math.random().toString(36).slice(2,10);
-const fmt = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}).format(n||0);
 const today = new Date();
 const currentMonth = today.getMonth();
-const currentYear = today.getFullYear();
-const monthKey = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
-const currentMK = monthKey(currentYear, currentMonth);
+const currentYear  = today.getFullYear();
+const currentMK    = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
 
+const uid    = () => Math.random().toString(36).slice(2,10);
+const fmt    = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}).format(n||0);
+const monthKey = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
 function daysUntil(day) {
-  const now = new Date(); const d = now.getDate();
+  const d = today.getDate();
   if (day >= d) return day - d;
-  const next = new Date(now.getFullYear(), now.getMonth()+1, day);
-  return Math.round((next - now) / 86400000);
+  const next = new Date(today.getFullYear(), today.getMonth()+1, day);
+  return Math.round((next - today) / 86400000);
 }
 
 // ─── STORAGE ─────────────────────────────────────────────────────────────────
 function useStorage(key, init) {
   const [val, setVal] = useState(() => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : init; }
-    catch { return init; }
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : init; } catch { return init; }
   });
   const set = useCallback(v => {
     setVal(prev => {
@@ -392,7 +389,7 @@ const IconList = () => (
   </svg>
 );
 const IconCheck = () => (
-  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="2,6 5,9 10,3"/>
   </svg>
 );
@@ -401,45 +398,61 @@ const IconPlus = () => (
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
+const IconChevronLeft = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+);
+const IconChevronRight = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+);
 
-// ─── CHECK BUTTON ─────────────────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function CheckBtn({ checked, onToggle }) {
   return (
-    <button className={`check-btn ${checked ? 'checked' : ''}`} onClick={e => { e.stopPropagation(); onToggle(); }}>
-      {checked && <IconCheck />}
+    <button className={`check-btn ${checked?'checked':''}`} onClick={e=>{e.stopPropagation();onToggle();}}>
+      {checked && <IconCheck/>}
     </button>
   );
 }
 
-// ─── COLOR PICKER ─────────────────────────────────────────────────────────────
+function Toggle({ on, onToggle, label, sub }) {
+  return (
+    <div className="toggle-row">
+      <div className="toggle-label">
+        {label}
+        {sub && <small>{sub}</small>}
+      </div>
+      <button className={`toggle-switch ${on?'on':''}`} onClick={onToggle}>
+        <div className="toggle-knob"/>
+      </button>
+    </div>
+  );
+}
+
+function ProgressBar({ pct, color='var(--blue)' }) {
+  const w = Math.min(100, Math.max(0, pct));
+  const bg = w > 85 ? 'var(--red)' : w > 60 ? 'var(--orange)' : color;
+  return <div className="bar-bg"><div className="bar-fill" style={{width:`${w}%`,background:bg}}/></div>;
+}
+
 function ColorPicker({ value, onChange }) {
   return (
     <div className="color-picker">
       {COLORS.map(c => (
-        <div key={c.id} className={`color-dot ${c.cls} ${value===c.id?'selected':''}`}
-          onClick={() => onChange(c.id)} />
+        <div key={c.id} className={`color-dot ${c.cls} ${value===c.id?'selected':''}`} onClick={()=>onChange(c.id)}/>
       ))}
     </div>
   );
 }
 
-// ─── PROGRESS BAR ─────────────────────────────────────────────────────────────
-function ProgressBar({ pct, color='var(--blue)' }) {
-  const w = Math.min(100, Math.max(0, pct));
-  const bg = w > 85 ? 'var(--red)' : w > 60 ? 'var(--orange)' : color;
-  return (
-    <div className="bar-bg">
-      <div className="bar-fill" style={{ width: `${w}%`, background: bg }} />
-    </div>
-  );
-}
-
-// ─── SHEET WRAPPER ────────────────────────────────────────────────────────────
 function Sheet({ title, onClose, children }) {
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="sheet-handle" />
+      <div className="sheet" onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle"/>
         <div className="sheet-title">{title}</div>
         {children}
       </div>
@@ -447,209 +460,54 @@ function Sheet({ title, onClose, children }) {
   );
 }
 
-// ─── CARD FORM ────────────────────────────────────────────────────────────────
-function CardForm({ initial, onSave, onDelete, onClose }) {
-  const blank = { name:'', total:0, extension:0, available:0, cutDay:1, payDay:15, color:'blue' };
-  const [f, setF] = useState(initial || blank);
-  const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
-  return (
-    <Sheet title={initial ? 'Editar Tarjeta' : 'Nueva Tarjeta'} onClose={onClose}>
-      <div className="sheet-body">
-        <div className="field"><label>Nombre</label><input value={f.name} onChange={set('name')} placeholder="ej. HSBC Platinum" /></div>
-        <div className="field-row">
-          <div className="field"><label>Crédito Total</label><input type="number" value={f.total} onChange={set('total')} /></div>
-          <div className="field"><label>Extensión</label><input type="number" value={f.extension} onChange={set('extension')} /></div>
-        </div>
-        <div className="field"><label>Disponible Actual</label><input type="number" value={f.available} onChange={set('available')} /></div>
-        <div className="field-row">
-          <div className="field"><label>Día de Corte</label><input type="number" min="1" max="31" value={f.cutDay} onChange={set('cutDay')} /></div>
-          <div className="field"><label>Día de Pago</label><input type="number" min="1" max="31" value={f.payDay} onChange={set('payDay')} /></div>
-        </div>
-        <div className="field"><label>Color</label><ColorPicker value={f.color} onChange={v => setF(p => ({...p,color:v}))} /></div>
-      </div>
-      <div className="sheet-actions">
-        {initial && <button className="btn-danger" onClick={() => onDelete(initial.id)}>Eliminar</button>}
-        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn-primary" onClick={() => { if(f.name) { onSave(f); onClose(); } }}>Guardar</button>
-      </div>
-    </Sheet>
-  );
-}
+// ─── CARD SUMMARY (list view) ─────────────────────────────────────────────
+function computeCardTotals(card, expenses, msis) {
+  const totalCredit  = parseFloat(card.total)||0;
+  const baseAvail    = parseFloat(card.available)||0;
 
-// ─── EXPENSE FORM ─────────────────────────────────────────────────────────────
-function ExpenseForm({ cardId, initial, onSave, onDelete, onClose }) {
-  const blank = { desc:'', amount:0, cat: CATS[9], date: today.toISOString().slice(0,10), note:'', paid:false };
-  const [f, setF] = useState(initial || blank);
-  const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
-  return (
-    <Sheet title={initial ? 'Editar Gasto' : 'Nuevo Gasto'} onClose={onClose}>
-      <div className="sheet-body">
-        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. Amazon Prime" /></div>
-        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')} /></div>
-        <div className="field"><label>Categoría</label>
-          <select value={f.cat} onChange={set('cat')}>{CATS.map(c => <option key={c}>{c}</option>)}</select>
-        </div>
-        <div className="field"><label>Fecha</label><input type="date" value={f.date} onChange={set('date')} /></div>
-        <div className="field"><label>Nota</label><textarea value={f.note} onChange={set('note')} placeholder="Notas opcionales..." /></div>
-      </div>
-      <div className="sheet-actions">
-        {initial && <button className="btn-danger" onClick={() => { onDelete(initial.id); onClose(); }}>Eliminar</button>}
-        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn-primary" onClick={() => { if(f.desc) { onSave(f); onClose(); } }}>Guardar</button>
-      </div>
-    </Sheet>
-  );
-}
-
-// ─── MSI FORM ─────────────────────────────────────────────────────────────────
-function MsiForm({ cardId, initial, onSave, onDelete, onClose }) {
-  const blank = { desc:'', monthly:0, total:12, startMonth: currentMonth, startYear: currentYear, paid:[] };
-  const [f, setF] = useState(initial || blank);
-  const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
-  return (
-    <Sheet title={initial ? 'Editar MSI' : 'Nuevo MSI / Diferido'} onClose={onClose}>
-      <div className="sheet-body">
-        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. MacBook Pro 12 MSI" /></div>
-        <div className="field"><label>Cuota Mensual ($)</label><input type="number" value={f.monthly} onChange={set('monthly')} /></div>
-        <div className="field-row">
-          <div className="field"><label>Total Cuotas</label><input type="number" min="1" max="60" value={f.total} onChange={set('total')} /></div>
-        </div>
-        <div className="field-row">
-          <div className="field"><label>Mes Inicio</label>
-            <select value={f.startMonth} onChange={set('startMonth')}>
-              {MONTHS.map((m,i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-          </div>
-          <div className="field"><label>Año</label><input type="number" min="2020" max="2035" value={f.startYear} onChange={set('startYear')} /></div>
-        </div>
-      </div>
-      <div className="sheet-actions">
-        {initial && <button className="btn-danger" onClick={() => { onDelete(initial.id); onClose(); }}>Eliminar</button>}
-        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn-primary" onClick={() => { if(f.desc) { onSave({...f, paid: initial ? initial.paid : []}); onClose(); } }}>Guardar</button>
-      </div>
-    </Sheet>
-  );
-}
-
-// ─── COMMITMENT FORM ──────────────────────────────────────────────────────────
-function CommitForm({ initial, onSave, onDelete, onClose }) {
-  const blank = { desc:'', amount:0, cat: CATS[9], month: currentMonth, year: currentYear, repeat:1, paidMonths:[] };
-  const [f, setF] = useState(initial || blank);
-  const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
-  return (
-    <Sheet title={initial ? 'Editar Compromiso' : 'Nuevo Compromiso'} onClose={onClose}>
-      <div className="sheet-body">
-        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. Netflix, Renta, Etc." /></div>
-        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')} /></div>
-        <div className="field"><label>Categoría</label>
-          <select value={f.cat} onChange={set('cat')}>{CATS.map(c => <option key={c}>{c}</option>)}</select>
-        </div>
-        <div className="field-row">
-          <div className="field"><label>Mes Inicio</label>
-            <select value={f.month} onChange={set('month')}>
-              {MONTHS.map((m,i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-          </div>
-          <div className="field"><label>Año</label><input type="number" min="2020" max="2035" value={f.year} onChange={set('year')} /></div>
-        </div>
-        <div className="field"><label>Repetir (meses)</label><input type="number" min="1" max="120" value={f.repeat} onChange={set('repeat')} /></div>
-      </div>
-      <div className="sheet-actions">
-        {initial && <button className="btn-danger" onClick={() => { onDelete(initial.id); onClose(); }}>Eliminar</button>}
-        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn-primary" onClick={() => { if(f.desc) { onSave(f); onClose(); } }}>Guardar</button>
-      </div>
-    </Sheet>
-  );
-}
-
-// ─── MSI ITEM ─────────────────────────────────────────────────────────────────
-function MsiItem({ item, onTogglePaid, onEdit }) {
-  const total = parseInt(item.total);
-  const monthly = parseFloat(item.monthly);
-  const paid = item.paid || [];
-  const paidCount = paid.length;
-  const pct = total > 0 ? (paidCount/total)*100 : 0;
-  const months = Array.from({length: total}, (_,i) => {
-    const mi = (parseInt(item.startMonth) + i) % 12;
-    const yi = parseInt(item.startYear) + Math.floor((parseInt(item.startMonth) + i) / 12);
-    return { label: MONTHS[mi], key: monthKey(yi, mi) };
-  });
-  return (
-    <div className="msi-item">
-      <div className="msi-top">
-        <span className="msi-desc">{item.desc}</span>
-        <span className="msi-total">{fmt(monthly * total)}</span>
-      </div>
-      <div className="msi-meta">{fmt(monthly)}/mes · {paidCount}/{total} cuotas · {fmt(monthly * paidCount)} pagado</div>
-      <div className="msi-progress" style={{marginTop:6}}>
-        <ProgressBar pct={pct} color="var(--blue)" />
-      </div>
-      <div className="msi-dots">
-        {months.map((m,i) => (
-          <button key={i} className={`msi-dot ${paid.includes(m.key)?'paid':''}`}
-            onClick={() => onTogglePaid(item.id, m.key)}>
-            {paid.includes(m.key) ? '✓' : m.label.slice(0,1)+String(i+1)}
-          </button>
-        ))}
-      </div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginTop:6}}>
-        <button className="item-delete-btn" onClick={() => onEdit(item)}>editar</button>
-      </div>
-    </div>
-  );
-}
-
-// ─── CREDIT CARD ──────────────────────────────────────────────────────────────
-function CreditCard({ card, expenses, msis, onEditCard, onAddExpense, onAddMsi,
-    onToggleExpense, onDeleteExpense, onEditExpense,
-    onToggleMsiPaid, onDeleteMsi, onEditMsi }) {
-
-  const [open, setOpen] = useState(false);
-  const colorInfo = COLORS.find(c => c.id === card.color) || COLORS[2];
-
-  // Compute totals
-  const totalCredit = parseFloat(card.total)||0;
-  const extension = parseFloat(card.extension)||0;
-  const baseAvail = parseFloat(card.available)||0;
-
-  // Paid expenses add back to available
-  const paidExpensesSum = expenses.filter(e => e.paid).reduce((a,e) => a + (parseFloat(e.amount)||0), 0);
-  // Paid MSI installments add back
-  const paidMsiSum = msis.reduce((a,m) => {
+  // Expenses that are already discounted from bank reduce available (alreadyDiscounted = true → already taken, no adjustment)
+  // Expenses marked paid → add back to available
+  // Expenses NOT paid and NOT alreadyDiscounted → subtract from available (we track this via the flag on save)
+  const paidExpSum  = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const paidMsiSum  = msis.reduce((a,m)=>{
     return a + (m.paid||[]).length * (parseFloat(m.monthly)||0);
-  }, 0);
+  },0);
 
-  const realAvail = baseAvail + paidExpensesSum + paidMsiSum;
-  const used = totalCredit - realAvail;
-  const usedPct = totalCredit > 0 ? (used / totalCredit) * 100 : 0;
+  const realAvail = baseAvail + paidExpSum + paidMsiSum;
+  const used      = totalCredit - realAvail;
+  const usedPct   = totalCredit > 0 ? (used/totalCredit)*100 : 0;
 
-  // Total to pay = sum of unpaid expenses + sum of remaining MSI installments
-  const unpaidExpenses = expenses.filter(e => !e.paid).reduce((a,e) => a + (parseFloat(e.amount)||0), 0);
-  const remainingMsi = msis.reduce((a,m) => {
+  const unpaidExpTotal = expenses.filter(e=>!e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const remainMsi = msis.reduce((a,m)=>{
     const paidCount = (m.paid||[]).length;
-    const remaining = parseInt(m.total) - paidCount;
-    return a + remaining * (parseFloat(m.monthly)||0);
-  }, 0);
-  const totalToPay = unpaidExpenses + remainingMsi;
+    return a + (parseInt(m.total)-paidCount)*(parseFloat(m.monthly)||0);
+  },0);
+  const totalToPay = unpaidExpTotal + remainMsi;
 
-  const cutDays = daysUntil(parseInt(card.cutDay)||1);
-  const payDays = daysUntil(parseInt(card.payDay)||15);
+  return { totalCredit, realAvail, used, usedPct, totalToPay,
+    cutDays: daysUntil(parseInt(card.cutDay)||1),
+    payDays: daysUntil(parseInt(card.payDay)||15),
+  };
+}
+
+function CardListItem({ card, expenses, msis, onClick, onEdit }) {
+  const colorInfo = COLORS.find(c=>c.id===card.color)||COLORS[2];
+  const { realAvail, usedPct, totalToPay, cutDays, payDays } = computeCardTotals(card, expenses, msis);
 
   return (
-    <div className="card">
-      <div className={`cc-header ${colorInfo.cls}`} onClick={() => setOpen(!open)}>
+    <div className="card-list-item" onClick={onClick}>
+      <div className={`cc-header ${colorInfo.cls}`}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
           <div>
-            <div className="cc-name">{card.name || 'Sin nombre'}</div>
+            <div className="cc-name">{card.name||'Sin nombre'}</div>
             <div className="cc-chips">
               <span className="cc-chip">{expenses.length} gastos</span>
-              {msis.length > 0 && <span className="cc-chip">{msis.length} MSI</span>}
+              {msis.length>0 && <span className="cc-chip">{msis.length} MSI</span>}
             </div>
           </div>
-          <button style={{background:'rgba(255,255,255,.2)',border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}
-            onClick={e => { e.stopPropagation(); onEditCard(card); }}>editar</button>
+          <button
+            style={{background:'rgba(255,255,255,.2)',border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}
+            onClick={e=>{e.stopPropagation();onEdit(card);}}>editar</button>
         </div>
         <div className="cc-amount">{fmt(totalToPay)}</div>
         <div className="cc-amount-label">Total a Pagar</div>
@@ -661,323 +519,656 @@ function CreditCard({ card, expenses, msis, onEditCard, onAddExpense, onAddMsi,
             <span className="cc-stat-lbl">Disponible Real</span>
           </div>
           <div className="cc-stat" style={{alignItems:'flex-end'}}>
-            <span className="cc-stat-val">{fmt(totalCredit + extension)}</span>
+            <span className="cc-stat-val">{fmt((parseFloat(card.total)||0)+(parseFloat(card.extension)||0))}</span>
             <span className="cc-stat-lbl">Crédito Total</span>
           </div>
         </div>
         <div className="bar-wrap">
-          <ProgressBar pct={usedPct} />
+          <ProgressBar pct={usedPct}/>
           <div className="bar-labels">
-            <span>{fmt(used)} usado</span>
+            <span>{fmt(parseFloat(card.total)||0 - realAvail)} usado</span>
             <span>{Math.round(usedPct)}%</span>
           </div>
         </div>
         <div className="cc-days">
           <div className="cc-day-badge">
-            <div className="num" style={{color: cutDays <= 5 ? 'var(--red)' : cutDays <= 10 ? 'var(--orange)' : 'var(--text)'}}>{cutDays}</div>
+            <div className="num" style={{color:cutDays<=5?'var(--red)':cutDays<=10?'var(--orange)':'var(--text)'}}>{cutDays}</div>
             <div className="lbl">días corte</div>
           </div>
           <div className="cc-day-badge">
-            <div className="num" style={{color: payDays <= 3 ? 'var(--red)' : payDays <= 7 ? 'var(--orange)' : 'var(--text)'}}>{payDays}</div>
+            <div className="num" style={{color:payDays<=3?'var(--red)':payDays<=7?'var(--orange)':'var(--text)'}}>{payDays}</div>
             <div className="lbl">días pago</div>
           </div>
           <div className="cc-day-badge">
-            <div className="num">{unpaidExpenses > 0 ? expenses.filter(e=>!e.paid).length : '—'}</div>
-            <div className="lbl">sin pagar</div>
+            <div className="num" style={{color:'var(--blue)'}}>
+              <IconChevronRight/>
+            </div>
+            <div className="lbl">detalle</div>
           </div>
         </div>
       </div>
-      <div className="cc-actions">
-        <button className="cc-action-btn" onClick={() => onAddExpense(card.id)}>+ Gasto</button>
-        <button className="cc-action-btn" onClick={() => onAddMsi(card.id)}>+ MSI</button>
+    </div>
+  );
+}
+
+// ─── DETAIL: EXPENSES TAB ────────────────────────────────────────────────────
+function ExpensesTab({ expenses, onToggle, onEdit }) {
+  if (!expenses.length) return (
+    <div className="empty"><div className="icon">🧾</div><p>Sin gastos. Toca + para agregar.</p></div>
+  );
+  const total = expenses.reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  const paid  = expenses.filter(e=>e.paid).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);
+  return (
+    <>
+      <div className="list-wrap">
+        {expenses.map(exp => (
+          <div key={exp.id} className="expense-item">
+            <div className="expense-icon">{exp.cat.split(' ')[0]}</div>
+            <div className="expense-info">
+              <div className="expense-desc">{exp.desc}</div>
+              <div className="expense-meta">{exp.cat.split(' ').slice(1).join(' ')} · {exp.date}</div>
+              {exp.alreadyDiscounted && (
+                <div className="expense-meta" style={{color:'var(--orange)'}}>⚡ Ya descontado del banco</div>
+              )}
+              {exp.note && <div className="expense-meta" style={{fontStyle:'italic'}}>{exp.note}</div>}
+              <button className="item-edit-btn" onClick={()=>onEdit(exp)}>editar</button>
+            </div>
+            <div className="expense-right">
+              <span className={`expense-amount ${exp.paid?'paid':''}`}>{fmt(exp.amount)}</span>
+              <CheckBtn checked={exp.paid} onToggle={()=>onToggle(exp.id)}/>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="list-wrap" style={{padding:'4px 0'}}>
+        <div className="summary-row"><span>Total gastos</span><strong>{fmt(total)}</strong></div>
+        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Ya pagado</span><strong style={{color:'var(--green)'}}>{fmt(paid)}</strong></div>
+        <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pendiente</span><strong style={{color:'var(--red)'}}>{fmt(total-paid)}</strong></div>
+      </div>
+    </>
+  );
+}
+
+// ─── DETAIL: MSI TAB ─────────────────────────────────────────────────────────
+function MsiTab({ msis, onTogglePaid, onEdit }) {
+  if (!msis.length) return (
+    <div className="empty"><div className="icon">📅</div><p>Sin MSI. Toca + para agregar.</p></div>
+  );
+  return (
+    <div className="list-wrap">
+      {msis.map(item => {
+        const total   = parseInt(item.total)||0;
+        const monthly = parseFloat(item.monthly)||0;
+        const paid    = item.paid||[];
+        const pct     = total>0?(paid.length/total)*100:0;
+        const months  = Array.from({length:total},(_,i)=>{
+          const mi = (parseInt(item.startMonth)+i)%12;
+          const yi = parseInt(item.startYear)+Math.floor((parseInt(item.startMonth)+i)/12);
+          return { label: MONTHS[mi]+String(i+1), key: monthKey(yi,mi) };
+        });
+        return (
+          <div key={item.id} className="msi-item">
+            <div className="msi-top">
+              <span className="msi-desc">{item.desc}</span>
+              <span className="msi-total">{fmt(monthly*total)}</span>
+            </div>
+            <div className="msi-meta">{fmt(monthly)}/mes · {paid.length}/{total} cuotas · {fmt(monthly*paid.length)} pagado</div>
+            <ProgressBar pct={pct}/>
+            <div className="msi-dots">
+              {months.map((m,i)=>(
+                <button key={i} className={`msi-dot ${paid.includes(m.key)?'paid':''}`}
+                  onClick={()=>onTogglePaid(item.id,m.key)}>
+                  {paid.includes(m.key)?'✓':m.label}
+                </button>
+              ))}
+            </div>
+            <div style={{textAlign:'right',marginTop:6}}>
+              <button className="item-edit-btn" onClick={()=>onEdit(item)}>editar</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── DETAIL: CATEGORIES TAB ──────────────────────────────────────────────────
+function CategoriesTab({ expenses }) {
+  const data = useMemo(()=>{
+    const map = {};
+    expenses.forEach(e=>{
+      const k = e.cat; const a = parseFloat(e.amount)||0;
+      map[k] = (map[k]||0) + a;
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  }, [expenses]);
+  const max = data.length ? data[0][1] : 1;
+  if (!data.length) return <div className="empty"><div className="icon">📊</div><p>Sin datos de categorías</p></div>;
+  return (
+    <div className="list-wrap">
+      {data.map(([cat,amt])=>(
+        <div key={cat} className="cat-row">
+          <div className="cat-emoji">{cat.split(' ')[0]}</div>
+          <div className="cat-info">
+            <div className="cat-name">{cat.split(' ').slice(1).join(' ')}</div>
+            <div className="cat-bar-wrap">
+              <ProgressBar pct={(amt/max)*100} color="var(--blue)"/>
+            </div>
+          </div>
+          <div className="cat-amount">{fmt(amt)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── CARD DETAIL SCREEN ──────────────────────────────────────────────────────
+function CardDetail({ card, expenses, msis, onBack, onEditCard,
+    onToggleExpense, onEditExpense, onAddExpense,
+    onToggleMsiPaid, onEditMsi, onAddMsi }) {
+  const [activeTab, setActiveTab] = useState('gastos');
+  const colorInfo = COLORS.find(c=>c.id===card.color)||COLORS[2];
+  const { realAvail, usedPct, totalToPay, cutDays, payDays } = computeCardTotals(card, expenses, msis);
+
+  const handleFabDetail = () => {
+    if (activeTab === 'gastos') onAddExpense(card.id);
+    else if (activeTab === 'msi') onAddMsi(card.id);
+  };
+
+  return (
+    <div className="screen-view slide-in" style={{paddingBottom:'calc(var(--nav-h) + var(--safe-bottom) + 80px)'}}>
+      {/* Header */}
+      <div className="detail-header">
+        <button className="back-btn" onClick={onBack}><IconChevronLeft/>Tarjetas</button>
+        <div style={{flex:1}}/>
+        <button style={{background:'none',border:'none',color:'var(--blue)',fontSize:14,fontWeight:600,cursor:'pointer'}} onClick={()=>onEditCard(card)}>Editar</button>
       </div>
 
-      {open && (
-        <>
-          {/* Expenses */}
-          {expenses.length > 0 && (
-            <>
-              <div className="divider" />
-              <div style={{padding:'10px 18px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:13,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:.4}}>Gastos</span>
-                <span style={{fontSize:12,color:'var(--text2)'}}>{fmt(unpaidExpenses)} pendiente</span>
-              </div>
-              {expenses.map(exp => (
-                <div key={exp.id} className="expense-item">
-                  <div className="expense-icon" style={{background:'var(--bg)'}}>{exp.cat.split(' ')[0]}</div>
-                  <div className="expense-info">
-                    <div className="expense-desc">{exp.desc}</div>
-                    <div className="expense-meta">{exp.cat.split(' ').slice(1).join(' ')} · {exp.date}</div>
-                    {exp.note && <div className="expense-meta" style={{fontStyle:'italic'}}>{exp.note}</div>}
-                    <button className="item-delete-btn" onClick={() => onEditExpense(exp, card.id)}>editar</button>
-                  </div>
-                  <div className="expense-right">
-                    <span className={`expense-amount ${exp.paid?'paid':''}`}>{fmt(exp.amount)}</span>
-                    <CheckBtn checked={exp.paid} onToggle={() => onToggleExpense(exp.id)} />
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
+      {/* Card summary */}
+      <div style={{margin:'0 16px 8px'}}>
+        <div className={`cc-header ${colorInfo.cls}`} style={{borderRadius:'var(--radius)'}}>
+          <div className="cc-name">{card.name||'Sin nombre'}</div>
+          <div className="cc-chips">
+            <span className="cc-chip">{expenses.length} gastos</span>
+            {msis.length>0&&<span className="cc-chip">{msis.length} MSI</span>}
+          </div>
+          <div className="cc-amount">{fmt(totalToPay)}</div>
+          <div className="cc-amount-label">Total a Pagar</div>
+        </div>
+      </div>
 
-          {/* MSIs */}
-          {msis.length > 0 && (
-            <>
-              <div className="divider" />
-              <div style={{padding:'10px 18px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:13,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:.4}}>MSI / Diferidos</span>
-              </div>
-              {msis.map(m => (
-                <MsiItem key={m.id} item={m}
-                  onTogglePaid={onToggleMsiPaid}
-                  onEdit={item => onEditMsi(item, card.id)} />
-              ))}
-            </>
-          )}
-        </>
+      {/* Stats */}
+      <div style={{background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',margin:'0 16px 8px',padding:'14px 16px'}}>
+        <div className="cc-row">
+          <div className="cc-stat"><span className="cc-stat-val">{fmt(realAvail)}</span><span className="cc-stat-lbl">Disponible Real</span></div>
+          <div className="cc-stat" style={{alignItems:'flex-end'}}><span className="cc-stat-val">{fmt((parseFloat(card.total)||0)+(parseFloat(card.extension)||0))}</span><span className="cc-stat-lbl">Crédito Total</span></div>
+        </div>
+        <div className="bar-wrap">
+          <ProgressBar pct={usedPct}/>
+          <div className="bar-labels"><span>{Math.round(usedPct)}% utilizado</span></div>
+        </div>
+        <div className="cc-days">
+          <div className="cc-day-badge">
+            <div className="num" style={{color:cutDays<=5?'var(--red)':cutDays<=10?'var(--orange)':'var(--text)'}}>{cutDays}</div>
+            <div className="lbl">días corte</div>
+          </div>
+          <div className="cc-day-badge">
+            <div className="num" style={{color:payDays<=3?'var(--red)':payDays<=7?'var(--orange)':'var(--text)'}}>{payDays}</div>
+            <div className="lbl">días pago</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="detail-tabs">
+        {['gastos','msi','categorias'].map(t=>(
+          <button key={t} className={`detail-tab ${activeTab===t?'active':''}`} onClick={()=>setActiveTab(t)}>
+            {t==='gastos'?'Gastos':t==='msi'?'MSI':'Categorías'}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div style={{marginTop:4}}>
+        {activeTab==='gastos' && <ExpensesTab expenses={expenses} onToggle={onToggleExpense} onEdit={exp=>onEditExpense(exp,card.id)}/>}
+        {activeTab==='msi'    && <MsiTab msis={msis} onTogglePaid={onToggleMsiPaid} onEdit={item=>onEditMsi(item,card.id)}/>}
+        {activeTab==='categorias' && <CategoriesTab expenses={expenses}/>}
+      </div>
+
+      {/* FAB for detail (only on gastos/msi) */}
+      {activeTab!=='categorias' && (
+        <button className="fab" onClick={handleFabDetail}><IconPlus/></button>
       )}
     </div>
   );
 }
 
-// ─── COMMITMENTS SCREEN ───────────────────────────────────────────────────────
-function CommitmentsScreen({ commits, onEdit, onTogglePaid, selectedMK }) {
-  const active = commits.filter(c => {
-    const sm = monthKey(parseInt(c.year), parseInt(c.month));
-    const months = parseInt(c.repeat)||1;
-    const endDate = new Date(parseInt(c.year), parseInt(c.month) + months - 1, 1);
-    const endMK = monthKey(endDate.getFullYear(), endDate.getMonth());
-    return sm <= selectedMK && selectedMK <= endMK;
-  });
-
-  const totalPending = active.filter(c => !((c.paidMonths||[]).includes(selectedMK))).reduce((a,c) => a + (parseFloat(c.amount)||0), 0);
-  const totalPaid = active.filter(c => (c.paidMonths||[]).includes(selectedMK)).reduce((a,c) => a + (parseFloat(c.amount)||0), 0);
-
-  if (active.length === 0) return (
-    <div className="empty"><div className="icon">📋</div><p>No hay compromisos en este mes</p></div>
+// ─── FORMS ───────────────────────────────────────────────────────────────────
+function CardForm({ initial, onSave, onDelete, onClose }) {
+  const blank = { name:'', total:0, extension:0, available:0, cutDay:1, payDay:15, color:'blue' };
+  const [f, setF] = useState(initial||blank);
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  return (
+    <Sheet title={initial?'Editar Tarjeta':'Nueva Tarjeta'} onClose={onClose}>
+      <div className="sheet-body">
+        <div className="field"><label>Nombre</label><input value={f.name} onChange={set('name')} placeholder="ej. HSBC Platinum"/></div>
+        <div className="field-row">
+          <div className="field"><label>Crédito Total</label><input type="number" value={f.total} onChange={set('total')}/></div>
+          <div className="field"><label>Extensión</label><input type="number" value={f.extension} onChange={set('extension')}/></div>
+        </div>
+        <div className="field"><label>Disponible Actual</label><input type="number" value={f.available} onChange={set('available')}/></div>
+        <div className="field-row">
+          <div className="field"><label>Día de Corte</label><input type="number" min="1" max="31" value={f.cutDay} onChange={set('cutDay')}/></div>
+          <div className="field"><label>Día de Pago</label><input type="number" min="1" max="31" value={f.payDay} onChange={set('payDay')}/></div>
+        </div>
+        <div className="field"><label>Color</label><ColorPicker value={f.color} onChange={v=>setF(p=>({...p,color:v}))}/></div>
+      </div>
+      <div className="sheet-actions">
+        {initial && <button className="btn-danger" onClick={()=>onDelete(initial.id)}>Eliminar</button>}
+        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" onClick={()=>{if(f.name){onSave(f);onClose();}}}>Guardar</button>
+      </div>
+    </Sheet>
   );
+}
+
+function ExpenseForm({ initial, onSave, onDelete, onClose }) {
+  const blank = {
+    desc:'', amount:0, cat:CATS[12], date:today.toISOString().slice(0,10),
+    note:'', paid:false, alreadyDiscounted:false
+  };
+  const [f, setF] = useState(initial||blank);
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
 
   return (
-    <div className="list-section-wrap" style={{margin:'0 16px 12px',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',overflow:'hidden'}}>
-      {active.map(c => {
-        const isPaid = (c.paidMonths||[]).includes(selectedMK);
-        return (
-          <div key={c.id + selectedMK} className="commit-item">
-            <div className="commit-top">
-              <div style={{flex:1,minWidth:0}}>
-                <div className="commit-desc" style={{opacity:isPaid?.5:1,textDecoration:isPaid?'line-through':'none'}}>{c.desc}</div>
-                <div className="commit-meta">{c.cat.split(' ').slice(1).join(' ')} · {parseInt(c.repeat)>1?`${c.repeat} meses`:'Único'}</div>
-              </div>
-              <div style={{display:'flex',gap:10,alignItems:'center'}}>
-                <span className="commit-amount" style={{opacity:isPaid?.5:1}}>{fmt(c.amount)}</span>
-                <CheckBtn checked={isPaid} onToggle={() => onTogglePaid(c.id, selectedMK)} />
-              </div>
-            </div>
-            <button className="item-delete-btn" onClick={() => onEdit(c)}>editar</button>
+    <Sheet title={initial?'Editar Gasto':'Nuevo Gasto'} onClose={onClose}>
+      <div className="sheet-body">
+        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. Amazon, Netflix…"/></div>
+        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')}/></div>
+        <div className="field"><label>Categoría</label>
+          <select value={f.cat} onChange={set('cat')}>
+            {CATS.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>Fecha</label><input type="date" value={f.date} onChange={set('date')}/></div>
+        <div className="field"><label>Nota</label><textarea value={f.note} onChange={set('note')} placeholder="Notas opcionales…"/></div>
+
+        {/* KEY TOGGLE */}
+        <Toggle
+          on={f.alreadyDiscounted}
+          onToggle={()=>setF(p=>({...p,alreadyDiscounted:!p.alreadyDiscounted}))}
+          label="¿Ya está descontado de tu saldo disponible?"
+          sub={f.alreadyDiscounted
+            ? "✅ El banco ya lo descontó — no se restará del disponible"
+            : "⚠️ No descontado aún — se restará del disponible al guardar"}
+        />
+      </div>
+      <div className="sheet-actions">
+        {initial && <button className="btn-danger" onClick={()=>{onDelete(initial.id);onClose();}}>Eliminar</button>}
+        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" onClick={()=>{if(f.desc){onSave(f);onClose();}}}>Guardar</button>
+      </div>
+    </Sheet>
+  );
+}
+
+function MsiForm({ initial, onSave, onDelete, onClose }) {
+  const blank = { desc:'', monthly:0, total:12, startMonth:currentMonth, startYear:currentYear, paid:[] };
+  const [f, setF] = useState(initial||blank);
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  return (
+    <Sheet title={initial?'Editar MSI':'Nuevo MSI / Diferido'} onClose={onClose}>
+      <div className="sheet-body">
+        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. MacBook 12 MSI"/></div>
+        <div className="field"><label>Cuota Mensual ($)</label><input type="number" value={f.monthly} onChange={set('monthly')}/></div>
+        <div className="field"><label>Total de Cuotas</label><input type="number" min="1" max="60" value={f.total} onChange={set('total')}/></div>
+        <div className="field-row">
+          <div className="field"><label>Mes Inicio</label>
+            <select value={f.startMonth} onChange={set('startMonth')}>
+              {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select>
           </div>
-        );
-      })}
-      <div className="summary-row">
-        <span>Pagado este mes</span>
-        <strong style={{color:'var(--green)'}}>{fmt(totalPaid)}</strong>
+          <div className="field"><label>Año</label><input type="number" min="2020" max="2035" value={f.startYear} onChange={set('startYear')}/></div>
+        </div>
       </div>
-      <div className="summary-row" style={{borderTop:'none',paddingTop:0}}>
-        <span>Pendiente</span>
-        <strong style={{color:'var(--red)'}}>{fmt(totalPending)}</strong>
+      <div className="sheet-actions">
+        {initial && <button className="btn-danger" onClick={()=>{onDelete(initial.id);onClose();}}>Eliminar</button>}
+        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" onClick={()=>{if(f.desc){onSave({...f,paid:initial?initial.paid:[]});onClose();}}}>Guardar</button>
       </div>
-    </div>
+    </Sheet>
+  );
+}
+
+function CommitForm({ initial, onSave, onDelete, onClose }) {
+  const blank = { desc:'', amount:0, cat:CATS[8], month:currentMonth, year:currentYear, repeat:1, paidMonths:[] };
+  const [f, setF] = useState(initial||blank);
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  return (
+    <Sheet title={initial?'Editar Compromiso':'Nuevo Compromiso'} onClose={onClose}>
+      <div className="sheet-body">
+        <div className="field"><label>Descripción</label><input value={f.desc} onChange={set('desc')} placeholder="ej. Netflix, Renta…"/></div>
+        <div className="field"><label>Monto</label><input type="number" value={f.amount} onChange={set('amount')}/></div>
+        <div className="field"><label>Categoría</label>
+          <select value={f.cat} onChange={set('cat')}>{CATS.map(c=><option key={c}>{c}</option>)}</select>
+        </div>
+        <div className="field-row">
+          <div className="field"><label>Mes Inicio</label>
+            <select value={f.month} onChange={set('month')}>
+              {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select>
+          </div>
+          <div className="field"><label>Año</label><input type="number" min="2020" max="2035" value={f.year} onChange={set('year')}/></div>
+        </div>
+        <div className="field"><label>Repetir (meses)</label><input type="number" min="1" max="120" value={f.repeat} onChange={set('repeat')}/></div>
+      </div>
+      <div className="sheet-actions">
+        {initial && <button className="btn-danger" onClick={()=>{onDelete(initial.id);onClose();}}>Eliminar</button>}
+        <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn-primary" onClick={()=>{if(f.desc){onSave(f);onClose();}}}>Guardar</button>
+      </div>
+    </Sheet>
+  );
+}
+
+// ─── COMMITMENTS SCREEN ───────────────────────────────────────────────────────
+function CommitmentsScreen({ commits, onEdit, onTogglePaid, selMonth, setSelMonth }) {
+  const monthTabs = useMemo(()=>{
+    const tabs=[];
+    for(let i=-2;i<=8;i++){
+      const d=new Date(currentYear,currentMonth+i,1);
+      tabs.push({key:monthKey(d.getFullYear(),d.getMonth()),label:`${MONTHS[d.getMonth()]} ${d.getFullYear()}`});
+    }
+    return tabs;
+  },[]);
+
+  const active = commits.filter(c=>{
+    const sm = monthKey(parseInt(c.year),parseInt(c.month));
+    const months = parseInt(c.repeat)||1;
+    const endDate = new Date(parseInt(c.year),parseInt(c.month)+months-1,1);
+    const endMK = monthKey(endDate.getFullYear(),endDate.getMonth());
+    return sm<=selMonth && selMonth<=endMK;
+  });
+
+  const totalPending = active.filter(c=>!((c.paidMonths||[]).includes(selMonth))).reduce((a,c)=>a+(parseFloat(c.amount)||0),0);
+  const totalPaid    = active.filter(c=>(c.paidMonths||[]).includes(selMonth)).reduce((a,c)=>a+(parseFloat(c.amount)||0),0);
+
+  return (
+    <>
+      <div className="month-tabs">
+        {monthTabs.map(t=>(
+          <button key={t.key} className={`month-tab ${selMonth===t.key?'active':''}`} onClick={()=>setSelMonth(t.key)}>{t.label}</button>
+        ))}
+      </div>
+      {active.length===0
+        ? <div className="empty"><div className="icon">📋</div><p>Sin compromisos en este mes</p></div>
+        : (
+          <div style={{background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',margin:'0 16px 12px',overflow:'hidden'}}>
+            {active.map(c=>{
+              const isPaid=(c.paidMonths||[]).includes(selMonth);
+              return (
+                <div key={c.id+selMonth} className="commit-item">
+                  <div className="commit-top">
+                    <div style={{flex:1,minWidth:0}}>
+                      <div className="commit-desc" style={{opacity:isPaid?.5:1,textDecoration:isPaid?'line-through':'none'}}>{c.desc}</div>
+                      <div className="commit-meta">{c.cat.split(' ').slice(1).join(' ')} · {parseInt(c.repeat)>1?`${c.repeat} meses`:'Único'}</div>
+                    </div>
+                    <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                      <span className="commit-amount" style={{opacity:isPaid?.5:1}}>{fmt(c.amount)}</span>
+                      <CheckBtn checked={isPaid} onToggle={()=>onTogglePaid(c.id,selMonth)}/>
+                    </div>
+                  </div>
+                  <button className="item-edit-btn" onClick={()=>onEdit(c)}>editar</button>
+                </div>
+              );
+            })}
+            <div className="summary-row"><span>Pagado</span><strong style={{color:'var(--green)'}}>{fmt(totalPaid)}</strong></div>
+            <div className="summary-row" style={{borderTop:'none',paddingTop:0}}><span>Pendiente</span><strong style={{color:'var(--red)'}}>{fmt(totalPending)}</strong></div>
+          </div>
+        )
+      }
+    </>
   );
 }
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
 function App() {
-  const [tab, setTab] = useState('cards');
-  const [cards, setCards] = useStorage('fp_cards', []);
-  const [expenses, setExpenses] = useStorage('fp_expenses', []); // [{id,cardId,...}]
-  const [msis, setMsis] = useStorage('fp_msis', []);
-  const [commits, setCommits] = useStorage('fp_commits', []);
+  const [tab, setTab]           = useState('cards');
+  const [detailCard, setDetail] = useState(null); // card obj | null
+  const [cards, setCards]       = useStorage('fp_cards', []);
+  const [expenses, setExpenses] = useStorage('fp_expenses', []);
+  const [msis, setMsis]         = useStorage('fp_msis', []);
+  const [commits, setCommits]   = useStorage('fp_commits', []);
 
-  // Modals
-  const [cardModal, setCardModal] = useState(null);   // null | 'new' | card obj
-  const [expModal, setExpModal] = useState(null);     // null | {cardId} | {cardId, exp}
-  const [msiModal, setMsiModal] = useState(null);
+  const [cardModal,   setCardModal]   = useState(null);
+  const [expModal,    setExpModal]    = useState(null);
+  const [msiModal,    setMsiModal]    = useState(null);
   const [commitModal, setCommitModal] = useState(null);
+  const [selMonth,    setSelMonth]    = useState(currentMK);
 
-  // Selected month for commitments
-  const [selMonth, setSelMonth] = useState(currentMK);
-
-  // Month tabs for commitments (current -2 to +3)
-  const monthTabs = useMemo(() => {
-    const tabs = [];
-    for (let i=-2; i<=6; i++) {
-      const d = new Date(currentYear, currentMonth + i, 1);
-      tabs.push({ key: monthKey(d.getFullYear(), d.getMonth()), label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}` });
-    }
-    return tabs;
-  }, []);
-
-  // Card CRUD
+  // ── Card CRUD ──
   const saveCard = c => {
-    if (c.id) setCards(p => p.map(x => x.id===c.id ? {...c} : x));
-    else setCards(p => [...p, { ...c, id: uid() }]);
+    if (c.id) setCards(p=>p.map(x=>x.id===c.id?{...c}:x));
+    else setCards(p=>[...p,{...c,id:uid()}]);
   };
   const deleteCard = id => {
-    setCards(p => p.filter(x => x.id !== id));
-    setExpenses(p => p.filter(x => x.cardId !== id));
-    setMsis(p => p.filter(x => x.cardId !== id));
+    setCards(p=>p.filter(x=>x.id!==id));
+    setExpenses(p=>p.filter(x=>x.cardId!==id));
+    setMsis(p=>p.filter(x=>x.cardId!==id));
     setCardModal(null);
+    setDetail(null);
   };
 
-  // Expense CRUD
+  // ── Expense CRUD ──
+  // When saving: if NOT alreadyDiscounted, subtract from card.available
   const saveExpense = (f, cardId) => {
-    if (f.id) setExpenses(p => p.map(x => x.id===f.id ? {...f, cardId} : x));
-    else setExpenses(p => [...p, { ...f, id: uid(), cardId, paid: false }]);
+    const amount = parseFloat(f.amount)||0;
+    if (f.id) {
+      // editing: find old expense to figure out delta
+      setExpenses(p => {
+        const old = p.find(x=>x.id===f.id);
+        // Adjust card available: reverse old effect, apply new
+        const oldEffect = old ? (old.alreadyDiscounted ? 0 : -(parseFloat(old.amount)||0)) : 0;
+        const newEffect = f.alreadyDiscounted ? 0 : -amount;
+        const delta = newEffect - oldEffect;
+        if (delta !== 0) {
+          setCards(cp=>cp.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)+delta}:c));
+        }
+        return p.map(x=>x.id===f.id?{...f,cardId}:x);
+      });
+    } else {
+      // new expense
+      if (!f.alreadyDiscounted) {
+        setCards(p=>p.map(c=>c.id===cardId?{...c,available:parseFloat(c.available||0)-amount}:c));
+      }
+      setExpenses(p=>[...p,{...f,id:uid(),cardId,paid:false}]);
+    }
   };
-  const deleteExpense = id => setExpenses(p => p.filter(x => x.id !== id));
-  const toggleExpense = id => setExpenses(p => p.map(x => x.id===id ? {...x, paid: !x.paid} : x));
 
-  // MSI CRUD
+  const deleteExpense = id => {
+    setExpenses(p=>{
+      const exp = p.find(x=>x.id===id);
+      if (exp) {
+        // Reverse the effect it had on available
+        const effect = exp.alreadyDiscounted ? 0 : (parseFloat(exp.amount)||0);
+        if (!exp.paid && !exp.alreadyDiscounted) {
+          // Was subtracted — add back
+          setCards(cp=>cp.map(c=>c.id===exp.cardId?{...c,available:parseFloat(c.available||0)+effect}:c));
+        }
+      }
+      return p.filter(x=>x.id!==id);
+    });
+  };
+
+  // Toggle paid: if paying → add amount to available; if unpaying → subtract
+  const toggleExpense = id => {
+    setExpenses(p => p.map(x => {
+      if (x.id!==id) return x;
+      const amount = parseFloat(x.amount)||0;
+      const nowPaid = !x.paid;
+      setCards(cp=>cp.map(c=>c.id===x.cardId
+        ? {...c, available: parseFloat(c.available||0) + (nowPaid ? amount : -amount)}
+        : c));
+      return {...x, paid: nowPaid};
+    }));
+  };
+
+  // ── MSI CRUD ──
   const saveMsi = (f, cardId) => {
-    if (f.id) setMsis(p => p.map(x => x.id===f.id ? {...f, cardId} : x));
-    else setMsis(p => [...p, { ...f, id: uid(), cardId, paid:[] }]);
+    if (f.id) setMsis(p=>p.map(x=>x.id===f.id?{...f,cardId}:x));
+    else setMsis(p=>[...p,{...f,id:uid(),cardId,paid:[]}]);
   };
-  const deleteMsi = id => setMsis(p => p.filter(x => x.id !== id));
-  const toggleMsiPaid = (id, mk) => setMsis(p => p.map(x => {
-    if (x.id !== id) return x;
-    const paid = x.paid||[];
-    return { ...x, paid: paid.includes(mk) ? paid.filter(k=>k!==mk) : [...paid, mk] };
-  }));
+  const deleteMsi = id => setMsis(p=>p.filter(x=>x.id!==id));
+  const toggleMsiPaid = (id, mk) => {
+    setMsis(p=>p.map(x=>{
+      if(x.id!==id) return x;
+      const paid=[...(x.paid||[])];
+      const monthly = parseFloat(x.monthly)||0;
+      const nowPaid = !paid.includes(mk);
+      setCards(cp=>cp.map(c=>c.id===x.cardId
+        ? {...c,available:parseFloat(c.available||0)+(nowPaid?monthly:-monthly)}
+        : c));
+      return {...x,paid:nowPaid?[...paid,mk]:paid.filter(k=>k!==mk)};
+    }));
+  };
 
-  // Commitment CRUD
+  // ── Commitments CRUD ──
   const saveCommit = f => {
-    if (f.id) setCommits(p => p.map(x => x.id===f.id ? {...f} : x));
-    else setCommits(p => [...p, { ...f, id: uid(), paidMonths:[] }]);
+    if(f.id) setCommits(p=>p.map(x=>x.id===f.id?{...f}:x));
+    else setCommits(p=>[...p,{...f,id:uid(),paidMonths:[]}]);
   };
-  const deleteCommit = id => { setCommits(p => p.filter(x => x.id !== id)); setCommitModal(null); };
-  const toggleCommitPaid = (id, mk) => setCommits(p => p.map(x => {
-    if (x.id !== id) return x;
-    const pm = x.paidMonths||[];
-    return { ...x, paidMonths: pm.includes(mk) ? pm.filter(k=>k!==mk) : [...pm, mk] };
+  const deleteCommit = id => { setCommits(p=>p.filter(x=>x.id!==id)); setCommitModal(null); };
+  const toggleCommitPaid = (id,mk) => setCommits(p=>p.map(x=>{
+    if(x.id!==id) return x;
+    const pm=x.paidMonths||[];
+    return {...x,paidMonths:pm.includes(mk)?pm.filter(k=>k!==mk):[...pm,mk]};
   }));
 
-  // FAB action
+  // ── FAB ──
   const handleFab = () => {
-    if (tab === 'cards') setCardModal('new');
+    if (detailCard) return; // detail screen has its own FAB
+    if (tab==='cards') setCardModal('new');
     else setCommitModal('new');
   };
 
+  const showDetail = detailCard !== null;
+
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
-      {/* SCREEN */}
-      <div className="screen">
-        {tab === 'cards' && (
-          <>
-            <div className="screen-header">
-              <div className="screen-title">Tarjetas 💳</div>
-              <div className="screen-sub">{cards.length === 0 ? 'Sin tarjetas — toca + para agregar' : `${cards.length} tarjeta${cards.length>1?'s':''}`}</div>
-            </div>
-            {cards.length === 0 && (
-              <div className="empty"><div className="icon">💳</div><p>Agrega tu primera tarjeta</p></div>
-            )}
-            {cards.map((card, i) => (
-              <div key={card.id} style={{animationDelay: `${i*50}ms`}}>
-                <CreditCard
-                  card={card}
-                  expenses={expenses.filter(e => e.cardId === card.id)}
-                  msis={msis.filter(m => m.cardId === card.id)}
-                  onEditCard={c => setCardModal(c)}
-                  onAddExpense={cid => setExpModal({ cardId: cid })}
-                  onAddMsi={cid => setMsiModal({ cardId: cid })}
-                  onToggleExpense={toggleExpense}
-                  onDeleteExpense={deleteExpense}
-                  onEditExpense={(exp, cid) => setExpModal({ cardId: cid, exp })}
-                  onToggleMsiPaid={toggleMsiPaid}
-                  onDeleteMsi={deleteMsi}
-                  onEditMsi={(item, cid) => setMsiModal({ cardId: cid, item })}
-                />
-              </div>
-            ))}
-          </>
-        )}
+      <div className="app-stack">
 
-        {tab === 'commits' && (
-          <>
-            <div className="screen-header">
-              <div className="screen-title">Compromisos 📋</div>
-              <div className="screen-sub">Pagos mensuales y únicos</div>
-            </div>
-            <div className="month-tabs">
-              {monthTabs.map(t => (
-                <button key={t.key} className={`month-tab ${selMonth===t.key?'active':''}`}
-                  onClick={() => setSelMonth(t.key)}>{t.label}</button>
+        {/* LIST SCREEN */}
+        <div className={`screen-view ${showDetail ? 'slide-out' : 'slide-in'}`}>
+          {tab==='cards' && (
+            <>
+              <div className="screen-header">
+                <div className="screen-title">Tarjetas 💳</div>
+                <div className="screen-sub">{cards.length===0?'Toca + para agregar tu primera tarjeta':`${cards.length} tarjeta${cards.length>1?'s':''}`}</div>
+              </div>
+              {cards.length===0 && <div className="empty"><div className="icon">💳</div><p>Sin tarjetas aún</p></div>}
+              {cards.map((card,i)=>(
+                <div key={card.id} style={{animationDelay:`${i*40}ms`}}>
+                  <CardListItem
+                    card={card}
+                    expenses={expenses.filter(e=>e.cardId===card.id)}
+                    msis={msis.filter(m=>m.cardId===card.id)}
+                    onClick={()=>setDetail(card)}
+                    onEdit={c=>setCardModal(c)}
+                  />
+                </div>
               ))}
-            </div>
-            <CommitmentsScreen
-              commits={commits}
-              onEdit={c => setCommitModal(c)}
-              onTogglePaid={toggleCommitPaid}
-              selectedMK={selMonth}
+            </>
+          )}
+          {tab==='commits' && (
+            <>
+              <div className="screen-header">
+                <div className="screen-title">Compromisos 📋</div>
+                <div className="screen-sub">Pagos mensuales y únicos</div>
+              </div>
+              <CommitmentsScreen
+                commits={commits}
+                onEdit={c=>setCommitModal(c)}
+                onTogglePaid={toggleCommitPaid}
+                selMonth={selMonth}
+                setSelMonth={setSelMonth}
+              />
+            </>
+          )}
+        </div>
+
+        {/* DETAIL SCREEN */}
+        {detailCard && (
+          <div className={`screen-view ${showDetail ? 'slide-in' : 'slide-right'}`} style={{zIndex:10}}>
+            <CardDetail
+              card={cards.find(c=>c.id===detailCard.id)||detailCard}
+              expenses={expenses.filter(e=>e.cardId===detailCard.id)}
+              msis={msis.filter(m=>m.cardId===detailCard.id)}
+              onBack={()=>setDetail(null)}
+              onEditCard={c=>setCardModal(c)}
+              onToggleExpense={toggleExpense}
+              onEditExpense={(exp,cid)=>setExpModal({cardId:cid,exp})}
+              onAddExpense={cid=>setExpModal({cardId:cid})}
+              onToggleMsiPaid={toggleMsiPaid}
+              onEditMsi={(item,cid)=>setMsiModal({cardId:cid,item})}
+              onAddMsi={cid=>setMsiModal({cardId:cid})}
             />
-          </>
+          </div>
         )}
       </div>
 
       {/* BOTTOM NAV */}
       <nav className="bottom-nav">
-        <button className={`nav-btn ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')}>
-          <IconCards /><span>Tarjetas</span>
+        <button className={`nav-btn ${tab==='cards'?'active':''}`} onClick={()=>{setTab('cards');setDetail(null);}}>
+          <IconCards/><span>Tarjetas</span>
         </button>
-        <button className={`nav-btn ${tab==='commits'?'active':''}`} onClick={() => setTab('commits')}>
-          <IconList /><span>Compromisos</span>
+        <button className={`nav-btn ${tab==='commits'?'active':''}`} onClick={()=>{setTab('commits');setDetail(null);}}>
+          <IconList/><span>Compromisos</span>
         </button>
       </nav>
 
-      {/* FAB */}
-      <button className="fab" onClick={handleFab}><IconPlus /></button>
+      {/* FAB — only on list views */}
+      {!detailCard && (
+        <button className="fab" onClick={handleFab}><IconPlus/></button>
+      )}
 
       {/* MODALS */}
-      {(cardModal === 'new' || (cardModal && cardModal.id)) && (
+      {(cardModal==='new'||(cardModal&&cardModal.id)) && (
         <CardForm
-          initial={cardModal === 'new' ? null : cardModal}
+          initial={cardModal==='new'?null:cardModal}
           onSave={saveCard}
           onDelete={deleteCard}
-          onClose={() => setCardModal(null)}
+          onClose={()=>setCardModal(null)}
         />
       )}
-
       {expModal && (
         <ExpenseForm
-          cardId={expModal.cardId}
-          initial={expModal.exp || null}
-          onSave={f => saveExpense(f, expModal.cardId)}
+          initial={expModal.exp||null}
+          onSave={f=>saveExpense(f,expModal.cardId)}
           onDelete={deleteExpense}
-          onClose={() => setExpModal(null)}
+          onClose={()=>setExpModal(null)}
         />
       )}
-
       {msiModal && (
         <MsiForm
-          cardId={msiModal.cardId}
-          initial={msiModal.item || null}
-          onSave={f => saveMsi(f, msiModal.cardId)}
+          initial={msiModal.item||null}
+          onSave={f=>saveMsi(f,msiModal.cardId)}
           onDelete={deleteMsi}
-          onClose={() => setMsiModal(null)}
+          onClose={()=>setMsiModal(null)}
         />
       )}
-
       {commitModal && (
         <CommitForm
-          initial={commitModal === 'new' ? null : commitModal}
+          initial={commitModal==='new'?null:commitModal}
           onSave={saveCommit}
           onDelete={deleteCommit}
-          onClose={() => setCommitModal(null)}
+          onClose={()=>setCommitModal(null)}
         />
       )}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
